@@ -1,0 +1,6 @@
+.coqdeps.d
+.*.aux
+*.glob
+*.vo
+.\#*
+
