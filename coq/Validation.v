@@ -26,11 +26,13 @@ End ImportExportTests.
 
 (* ================================================================= *)
 (** ** Conventions *)
+(** http://webassembly.github.io/spec/core/valid/conventions.html *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Contexts *)
+(** http://webassembly.github.io/spec/core/valid/conventions.html#contexts *)
 
-Record contexts :=
+Record context :=
   {
     types : list functype;
     funcs : list functype;
@@ -39,13 +41,18 @@ Record contexts :=
     return' : option resulttype;
   }.
 
-Notation idx := nth_error.
 
+(** indexing and indexing notation *)
+
+Notation idx := nth_error.
 Notation "l '.[' x ]" :=
   (idx l x)
   (at level 60, right associativity) : wasm_scope.
 
-Definition replace_labels (C: contexts) (xs: list resulttype) :=
+
+(** functional update - replacing fields *)
+
+Definition replace_labels (C: context) (xs: list resulttype) :=
   {|
     types := C.(types);
     funcs := C.(funcs);
@@ -53,8 +60,26 @@ Definition replace_labels (C: contexts) (xs: list resulttype) :=
     labels := xs;
     return' := C.(return');
   |}.
+Notation "C 'with_labels' = x" :=
+  (replace_labels C x)
+  (at level 69, left associativity) : wasm_scope.
 
-Definition cons_labels (C: contexts) (x: resulttype) :=
+Definition replace_return (C: context) (x: resulttype) :=
+  {|
+    types := C.(types);
+    funcs := C.(funcs);
+    locals := C.(locals);
+    labels := C.(labels);
+    return' := Some x;
+  |}.
+Notation "C 'with_return' = x" :=
+  (replace_return C x)
+  (at level 69, left associativity) : wasm_scope.
+
+
+(** functional update - cons on fields *)
+
+Definition cons_labels (C: context) (x: resulttype) :=
   {|
     types := C.(types);
     funcs := C.(funcs);
@@ -62,12 +87,39 @@ Definition cons_labels (C: contexts) (x: resulttype) :=
     labels := x :: C.(labels);
     return' := C.(return');
   |}.
-
-Notation "{ C 'with' 'labels' = x }" := (replace_labels C x).
-
 Notation "C ',' 'labels' x" :=
   (cons_labels C x)
-  (at level 69, left associativity) : wasm_scope.
+  (at level 68, left associativity) : wasm_scope.
+
+
+Definition cons_locals (C: context) (x: valtype) :=
+  {|
+    types := C.(types);
+    funcs := C.(funcs);
+    locals := x :: C.(locals);
+    labels := C.(labels);
+    return' := C.(return');
+  |}.
+Notation "C ',' 'locals' x" :=
+  (cons_locals C x)
+  (at level 68, left associativity) : wasm_scope.
+
+
+(** functional update - prepend on fields *)
+
+Definition prepend_locals (C: context) (xs: list valtype) :=
+  {|
+    types := C.(types);
+    funcs := C.(funcs);
+    locals := xs ++ C.(locals);
+    labels := C.(labels);
+    return' := C.(return');
+  |}.
+Notation "C ',' 'locals__s' xs" :=
+  (prepend_locals C xs)
+  (at level 68, left associativity) : wasm_scope.
+
+(** Tests *)
 
 Module ContextTests.
 
@@ -89,8 +141,11 @@ Module ContextTests.
   Compute (idx ex_C.(locals) 2).
 
   (* Testing Updates Notation *)
-  Definition ex_C2 := { ex_C with labels = [[T_i32]] }.
+  Definition ex_C2 := ex_C with_labels = [[T_i32]].
   Compute ex_C2.
+
+  Definition ex_Cr := ex_C with_return = [T_i32].
+  Compute ex_Cr.
 
   (* Testing Field Cons Notation *)
   Definition ex_C3 := ex_C, labels [T_i32]. 
@@ -98,6 +153,15 @@ Module ContextTests.
 
   Definition ex_C4 := ex_C, labels [T_f32], labels [T_i32]. 
   Compute ex_C4.
+
+  Definition ex_C5 := ex_C, locals__s [T_f32; T_f32].
+  Compute ex_C5.
+
+  Definition ex_C6 := ex_C, labels [T_f32], labels [T_i32] with_return = [T_i32].
+  Compute ex_C6.
+
+  Definition ex_C7 := ex_C, labels [T_f32], locals__s [T_i32; T_i32] with_return = [T_i32].
+  Compute ex_C7.
 
   (* Testing Indexing Notation *)
   Compute ([1;2;3].[1] ).
@@ -118,17 +182,38 @@ Module ContextTests.
     eapply Forall_cons...
   Qed.
 
+End ContextTests.
+
 
 
 (* ================================================================= *)
 (** ** Types *)
+(** http://webassembly.github.io/spec/core/valid/types.html *)
 
-Inductive valid_ty : ty -> Prop := .
+
+(* ----------------------------------------------------------------- *)
+(** *** Function Types *)
+(** http://webassembly.github.io/spec/core/valid/types.html#function-types *)
+
+(** The arity m must not be larger than 1.
+    The restriction to at most one result may be removed in future versions of WebAssembly.
+ *)
+
+Reserved Notation "'⊢ft' ft 'ok'" (at level 70).
+Inductive valid_functype : functype -> Prop :=
+  | VFT: forall ts1 ts2,
+      length ts2 <= 1 ->
+      ⊢ft ts1 --> ts2 ok
+where "'⊢ft' ft 'ok' " := (valid_functype ft).
+
+Hint Constructors valid_functype.
+
+
 
 
 (* ================================================================= *)
 (** ** Instructions *)
-(** https://webassembly.github.io/spec/core/valid/instructions.html#instructions *)
+(** https://webassembly.github.io/spec/core/valid/instructions.html *)
 
 (** Instructions are classified by _function types_ [[t1∗] --> [t2∗]]
     that describe how they manipulate the _operand stack_.
@@ -142,7 +227,7 @@ Inductive valid_ty : ty -> Prop := .
 Reserved Notation "C '⊢' instr '∈' ty" (at level 70).
 Reserved Notation "C '⊢s' instrs '∈' ty" (at level 70).
 
-Inductive valid_instr : contexts -> instr -> functype -> Prop :=
+Inductive valid_instr : context -> instr -> functype -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Numeric Instruction *)
 
@@ -257,7 +342,7 @@ Inductive valid_instr : contexts -> instr -> functype -> Prop :=
 (** *** Instruction Sequences *)
 (** http://webassembly.github.io/spec/core/valid/instructions.html#instruction-sequences *)
 
-with valid_instrs : contexts -> list instr -> functype -> Prop :=
+with valid_seq : context -> list instr -> functype -> Prop :=
   | VIS_empty : forall C ts,
       C ⊢s [] ∈ ts --> ts
 
@@ -267,18 +352,29 @@ with valid_instrs : contexts -> list instr -> functype -> Prop :=
       C ⊢s instrs ++ [instr__N] ∈ ts1 --> (ts0 ++ ts3)
 
 where "C '⊢' instr '∈' ty" := (valid_instr C instr ty)
-  and "C '⊢s' instrs '∈' ty" := (valid_instrs C instrs ty).
+  and "C '⊢s' instrs '∈' ty" := (valid_seq C instrs ty).
 
 Hint Constructors valid_instr.
-Hint Constructors valid_instrs.
+Hint Constructors valid_seq.
+
+
+(* postpone functional type checking.
+
+Fixpoint check_instr 
+
+*)
+
+
 
 
 (* ----------------------------------------------------------------- *)
 (** *** Expressions *)
 (** http://webassembly.github.io/spec/core/valid/instructions.html#expressions *)
 
+(** a.k.a Block *)
+
 Reserved Notation "C '⊢e' expr '∈' ty" (at level 70).
-Inductive valid_expr : contexts -> expr -> resulttype -> Prop :=
+Inductive valid_expr : context -> expr -> resulttype -> Prop :=
 
   | VE : forall C e tr,
       C ⊢s e ∈ [] --> tr ->
@@ -301,13 +397,13 @@ Hint Constructors valid_expr.
 
 Reserved Notation "C '⊢e' instrs 'const'" (at level 70).
 Reserved Notation "C '⊢' instr 'const'" (at level 70).
-Inductive const_expr : contexts -> expr -> Prop :=
+Inductive const_expr : context -> expr -> Prop :=
 
   | CE: forall C e,
       Forall (fun instr => C ⊢ instr const) e ->
       C ⊢e e const
 
-with const_instr : contexts -> instr -> Prop :=
+with const_instr : context -> instr -> Prop :=
 
   | CI_const : forall C t c,
       C ⊢ Structure.const t c const
@@ -318,3 +414,106 @@ where "C '⊢e' e 'const' " := (const_expr C e)
 Hint Constructors const_expr.
 Hint Constructors const_instr.
 
+
+(* postpone functional type checking.
+
+Fixpoint check_expr (C : context) (e : expr) (tr : resulttype) :=
+
+*)
+
+
+
+(* ================================================================= *)
+(** ** Modules *)
+(** http://webassembly.github.io/spec/core/valid/modules.html *)
+
+(* ----------------------------------------------------------------- *)
+(** *** Functions *)
+(** http://webassembly.github.io/spec/core/valid/modules.html#functions *)
+
+(** Issue on "validation rule for function is inaccurate"
+  * https://github.com/WebAssembly/spec/issues/1072
+  *)
+
+Reserved Notation "C '⊢f' f ∈ ty" (at level 70).
+Inductive valid_func : context -> func -> functype -> Prop :=
+
+  | VF : forall C (f: func) x ts expr ts1 ts2,
+      C.(types).[x] = Some (ts1 --> ts2) ->
+      C, locals__s (ts1 ++ ts), labels ts2 with_return = ts2 ⊢e expr ∈ ts2 ->
+      C ⊢f {| type := x; Structure.locals := ts; body := expr |} ∈ ts1 --> ts2
+
+where "C '⊢f' f ∈ ty" := (valid_func C f ty).
+
+Definition ft := [T_i32] --> [T_i32].
+Definition ins :=
+  let '(ins --> outs) := ft in ins.
+Definition ins2 :=
+  match ft with
+  | (ins --> outs) => ins
+  end.
+
+Definition foo := Build_func 0 [] []. 
+Definition a :=
+  (* By let pattern *)
+  let 'Build_func a b c := foo in a.
+Definition a2 :=
+  (* By constructor pattern *)
+  match foo with
+    | Build_func a b c  => a
+  end.
+Definition a3 :=
+  (* By notational pattern *)
+  match foo with
+    | {| type := a; Structure.locals := b; body := c |} => a
+  end.
+
+(* postpone functional type checking.
+
+Fixpoint check_func (C: context) (f: func) :=
+  let '(Build_func type locals body) := f in
+  let '(ts1 --> ts2) := C.(types).[type] in
+  let C' = C, locals__s (ts1 ++ ts), labels ts2 with_return = ts2 in
+  check_expr C' body ts2.
+*)
+
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Modules *)
+(** http://webassembly.github.io/spec/core/valid/modules.html#valid-module *)
+
+(** A module is entirely closed, i.e., no initial context is required.
+    Instead, the context C for validation of the module’s content is constructed from the definitions in the module. *)
+
+(** Let ft∗ be the concatenation of the internal function types fti, in index order.
+ *)
+
+
+Reserved Notation "'⊢' module ∈ ty" (at level 70).
+Inductive valid_module: module -> functype -> Prop :=
+  | VM : forall (m: module) its ets fts ft,
+      let
+        C : context := {|
+          types := m.(Structure.types);
+          funcs := fts;
+          locals := [];
+          labels := [];
+          return' := None;
+        |}
+      in
+      Forall (fun functype => ⊢ft functype ok) m.(Structure.types) ->
+      Forall (fun func => C ⊢f func ∈ ft) m.(Structure.funcs) ->
+      ⊢ m ∈ its --> ets
+      
+where "'⊢' m ∈ ty" := (valid_module m ty).
+
+
+(* postpone functional type checking.
+
+Fixpoint prepass_funcs (funcs : list func) : list functype :=
+  map (fun func => C.(types).[func.type]) funcs. 
+
+Fixpoint check_module 
+
+*)
