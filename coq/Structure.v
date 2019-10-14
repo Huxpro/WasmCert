@@ -8,8 +8,14 @@
 (* ################################################################# *)
 (** * Structure *)
 
-From Coq Require Export Lists.List.
+From Wasm Require Export Values.
+
+From Wasm Require Export Types.
+Export FunctypeNotations.
+
+From Wasm Require Export Commons.
 Export ListNotations.
+
 
 (** Module Type, Signature.. **)
 From Coq Require Export Structures.Equalities.
@@ -20,6 +26,12 @@ From Coq Require Export Structures.Equalities.
 
 (* ----------------------------------------------------------------- *)
 (** *** Indices *)
+
+(** https://webassembly.github.io/multi-value/core/syntax/modules.html#indices *)
+
+(** technically, indices are u32 so it's bounded.
+    currently we generalized both indices and vec as unbounded.
+  *)
 
 Definition typeidx := nat.
 Definition funcidx := nat.
@@ -34,167 +46,13 @@ Definition labelidx := nat.
 (* ================================================================= *)
 (** ** Values *)
 
-Parameter byte : Type.
-
-Parameter i8 : Type.
-Parameter i16 : Type.
-Parameter i32 : Type.
-Parameter i64 : Type.
-
-Parameter u32 : Type.
-Parameter u64 : Type.
-
-Parameter s32 : Type.
-Parameter s64 : Type.
-
-Parameter f32 : Type.
-Parameter f64 : Type.
+(** See [Value.v] *)
 
 
 (* ================================================================= *)
 (** ** Types *)
 
-(* ----------------------------------------------------------------- *)
-(** *** Value Types *)
-
-Inductive valtype :=
-  | T_i32
-  | T_i64
-  | T_f32
-  | T_f64.
-
-Definition eqb_valtype (ty1 ty2: valtype) : bool :=
-  match ty1, ty2 with
-  | T_i32, T_i32 => true
-  | T_i64, T_i64 => true
-  | T_f32, T_f32 => true
-  | T_f64, T_f64 => true
-  | _, _ => false
-  end.
-
-Definition all_valtype (ts: list valtype) (t': valtype) :=
-  forallb (fun t => eqb_valtype t t') ts.
-
-Lemma eqb_valtype_refl : forall (ty: valtype),
-  eqb_valtype ty ty = true.
-Proof.
-  destruct ty; auto.
-Qed.
-
-Lemma eqb_valtype_eq : forall (ty1 ty2: valtype),
-  eqb_valtype ty1 ty2 = true -> ty1 = ty2.
-Proof with eauto.
-  intro ty1.
-  destruct ty1;
-    intros ty2 Heqb;
-    destruct ty2; inversion Heqb...
-Qed.
-
-(** Having eq_dec is equivalent to having eqb and its spec
-    How? https://coq.inria.fr/library/Coq.Structures.Equalities.html
-  *)
-Lemma valtype_eq_dec: forall (ty1 ty2: valtype), {ty1 = ty2} + {ty1 <> ty2}.
-Proof.
-  decide equality.
-Qed.
-
-
-Module TestValtypeEq.
-
-Compute (all_valtype [T_i32] T_i32).
-
-Definition ex1 (ty: valtype) := if valtype_eq_dec ty T_i32 then true else false.
-
-Compute (ex1 T_i32).
-
-Lemma ex2: ex1(T_i32) = true.
-Proof.
-  Abort.
-
-
-End TestValtypeEq.
-  
-(* ----------------------------------------------------------------- *)
-(** *** Result Types *)
-
-(* Definition resulttype : Type := option valtype.  *)
-
-Notation resulttype := (list valtype). 
-
-(* ----------------------------------------------------------------- *)
-(** *** Function Types *)
-
-Record functype :=
-  {
-    ta: list valtype;
-    tr: list valtype
-  }.
-
-Module FunctypeNotations.
-Notation "t1 --> t2" :=
-  ({| ta := t1; tr := t2|})
-  (at level 30, right associativity) : wasm_scope.
-Open Scope wasm_scope.
-End FunctypeNotations.
-
-(** Coercion into sum type *)
-
-(** N.B. It seems like 
-
-      Definition ty := functype
-
-    during the actual validations?
- *)
-
-Inductive ty :=
-  | T_val (_: valtype)
-  | T_res (_: resulttype)
-  | T_fun (_: functype).
-
-Coercion T_val : valtype >-> ty.
-Coercion T_fun : functype >-> ty.
-
-
-(** Testing *)
-
-Module TypesTest.
-
-  Definition ex_res1: resulttype := [].
-  Definition ex_res2: resulttype := [T_i32].
-  Definition ex_fun: functype := {| ta := [T_i32]; tr := [T_i32] |}.
-
-  (* Coercion Testing *)
-
-  Definition ex_res1_ty_c : ty := T_res [].
-  Definition ex_res2_ty_c : ty := T_res [T_i32].
-  Definition ex_fun_ty_c : ty := {| ta := [T_i32]; tr := [T_i32] |}.
-
-  (* Func Notation Testing *)
-
-  Import FunctypeNotations.
-
-  Definition ex_fun_nu : functype := [] --> [T_i32].
-  Definition ex_fun_nu_ty_c : ty := [] --> [T_i32].
-  Compute ex_fun_nu.
-  Compute ex_fun_nu_ty_c.
-
-  Definition ex_fun_un : functype := [T_i32] --> [T_i32].
-  Definition ex_fun_un_ty_c : ty := [T_i32] --> [T_i32].
-  Compute ex_fun_un.
-  Compute ex_fun_un_ty_c.
-
-  Definition ex_fun_bin : functype := [T_i32; T_i32] --> [T_i32].
-  Definition ex_fun_bin_ty_c : ty := [T_i32; T_i32] --> [T_i32].
-  Compute ex_fun_bin.
-  Compute ex_fun_bin_ty_c.
-
-  (* cannot looser than ++ *)
-  Definition ex_fun_loose : functype := ([T_i32] ++ [T_i32]) --> [T_i32].
-
-  Definition ex_fun_with_res_c : ty := [T_i32; T_i32] --> ex_res2.
-  Compute ex_fun_with_res_c.
-
-End TypesTest.
+(** See [Types.v] *)
 
 
 (* ================================================================= *)
@@ -209,98 +67,152 @@ End TypesTest.
     which is isomorphic with the valtype. so we can safely use valtype as the constraint when defining instructions.
  *)
 
-Definition valOf (v: valtype) : Type :=
-  match v with
-  | T_i32 => i32
-  | T_i64 => i64
-  | T_f32 => f32
-  | T_f64 => f64
-  end.
-
-(** unsigned or signed *)
-
 Inductive sx :=
-  | u
-  | s.
+  | U
+  | S.
 
-(** int unary operator *)
+Module IntOp.
 
-Inductive _iunop :=
-  | clz
-  | ctz
-  | popcnt.
+  Inductive unop :=
+    | Clz
+    | Ctz
+    | Popcnt.
 
-(** int binary operator *)
+  Inductive binop := 
+    | Add
+    | Sub
+    | Mul
+    | Div (_: sx)
+    | Rem (_: sx)
+    | And
+    | Or
+    | Xor
+    | Shl
+    | Shr (_: sx)
+    | Rotl
+    | Rotr.
 
-Inductive _ibinop := 
-  | add
-  | sub
-  | mul
-  | div (_: sx)
-  | rem (_: sx)
-  | and
-  | or
-  | xor
-  | shl
-  | shr : sx -> _ibinop
-  | rotl
-  | rotr.
+  Inductive testop :=
+    | Eqz.
 
-(** int tests operator *)
+  Inductive relop :=
+    | Eq
+    | Ne
+    | Lt (_: sx)
+    | Gt (_: sx)
+    | Le (_: sx)
+    | Ge (_: sx).
 
-Inductive _itestop :=
-  | eqz.
+  Inductive cvtop :=
+    | Wrap_i64           (* i32. *)
+    | Extend_i32 (_: sx) (* i64. *)
+    | Trunc_f32 (_: sx)
+    | Trunc_f64 (_: sx)
+    | Reinterpret.
 
-(** int relational operator *)
+End IntOp.
 
-Inductive _irelop :=
-  | eq
-  | ne
-  | lt (_: sx)
-  | gt (_: sx)
-  | le (_: sx)
-  | ge (_: sx).
+Module FloatOp.
+
+  Inductive unop :=
+    | Abs
+    | Neg
+    | Sqrt
+    | Ceil
+    | Floor
+    | Trunc
+    | Nearest.
+
+  Inductive binop :=
+    | Add
+    | Sub
+    | Mul
+    | Div
+    | Min
+    | Max
+    | Copysign.
+
+  Inductive testop :=.
+
+  Inductive relop :=
+    | Eq
+    | Ne
+    | Lt
+    | Gt
+    | Le
+    | Ge.
+
+  Inductive cvtop :=
+    | Demote_f64          (* f32. *)
+    | Promote_f32         (* f64. *)
+    | Convert_i32 (_: sx)
+    | Convert_i64 (_: sx)
+    | Reinterpret.
+
+End FloatOp.
+
+Module IOp32 := IntOp.
+Module IOp64 := IntOp.
+Module FOp32 := FloatOp.
+Module FOp64 := FloatOp.
+
+Definition unop := @op IOp32.unop IOp64.unop FOp32.unop FOp64.unop.
+Definition binop := @op IOp32.binop IOp64.binop FOp32.binop FOp64.binop.
+Definition testop := @op IOp32.testop IOp64.testop FOp32.testop FOp64.testop.
+Definition relop := @op IOp32.relop IOp64.relop FOp32.relop FOp64.relop.
+Definition cvtop := @op IOp32.cvtop IOp64.cvtop FOp32.cvtop FOp64.cvtop.
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Control Instructions - blocktype *)
+
+Inductive blocktype :=
+  | BT_typeidx (t: typeidx)
+  | BT_valtype (v: option valtype).
 
 
 Inductive instr :=
 (* ----------------------------------------------------------------- *)
 (** *** Numeric Instruction *)
-  | const (t: valtype) (c : valOf t)
-  | iunop : valtype -> _iunop -> instr
-  | ibinop : valtype -> _ibinop -> instr
-  | itestop : valtype -> _itestop -> instr
-  | irelop : valtype -> _irelop -> instr
+  | Const (v: val)
+  | Unop (op: unop)
+  | Binop (op: binop)
+  | Testop (op: testop)
+  | Relop (op: relop)
+  (* | Cvtop (op: cvtop) *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Parametric Instruction *)
-  | drop
-  | select
+  | Drop
+  | Select
 
 (* ----------------------------------------------------------------- *)
 (** *** Variable Instruction *)
-  | local_get (i: localidx)
-  | local_set (i: localidx)
-  | local_tee (i: localidx)
-  (* | global_get (i: globalidx) *)
-  (* | global_set (i: globalidx) *)
+  | Local_get (i: localidx)
+  | Local_set (i: localidx)
+  | Local_tee (i: localidx)
+  (* | Global_get (i: globalidx) *)
+  (* | Global_set (i: globalidx) *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Memory Instruction *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instructions *)
-  | nop
-  | unreachable
-  | block : resulttype -> list instr -> instr
-  | loop : resulttype -> list instr -> instr
-  | if' : resulttype -> list instr -> list instr -> instr
-  | br : labelidx -> instr
-  | br_if : labelidx -> instr
-  | br_table : list labelidx -> labelidx -> instr
-  | return'
-  | call : funcidx -> instr
-  | call_indirect : typeidx -> instr.
-    
+  | Nop
+  | Unreachable
+  | Block (bt: blocktype) (b: list instr)
+  | Loop (bt: blocktype) (b: list instr)
+  | If (bt: blocktype) (b1: list instr) (b2: list instr)
+  | Br (l: labelidx)
+  | Br_if (l: labelidx)
+  | Br_table (ls: list labelidx) (l: labelidx)
+  | Return
+  | Call (f: funcidx)
+  | Call_indirect (t: typeidx).
+
+Coercion Const : val >-> instr.
+
 
 Definition expr : Type := list instr.
 
@@ -314,9 +226,17 @@ Definition expr : Type := list instr.
 
 Record func :=
   {
-    type : typeidx;
-    locals : list valtype;
-    body: expr;
+    F_type : typeidx;
+    F_locals : list valtype;
+    F_body: expr;
+  }.
+
+(* ----------------------------------------------------------------- *)
+(** *** Tables *)
+
+Record table :=
+  {
+    T_type : tabletype;
   }.
 
 
@@ -325,8 +245,9 @@ Record func :=
 
 Record module :=
   {
-    types : list functype;
-    funcs : list func;
+    M_types  : list functype;
+    M_funcs  : list func;
+    M_tables : list table;
   }.
 
                   

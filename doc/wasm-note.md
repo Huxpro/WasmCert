@@ -1,10 +1,8 @@
-Dev Notes
+Notes on WebAssembly
 =================================
 
-Gotcha
-------
-
-### Oct 2018 Rename
+Gotcha - Oct 2018 Rename
+------------------------
 
 A full renaming is happened: <https://github.com/WebAssembly/spec/issues/884#issuecomment-426433329>
 Basically, More uniformed `namespace.action_param_param2` less weird symbol. I think it's good
@@ -27,25 +25,114 @@ i32.trunc_s/f32 -> i32.trunc_f32_s
 
 ```
 
-### Different format
+Gotcha - Folded Form (Text Format)
+----------------------------------
 
-Both works...
+> https://webassembly.github.io/spec/core/text/instructions.html#folded-instructions
+
+$$ (𝚕𝚘𝚌𝚊𝚕.𝚐𝚎𝚝 $𝚡) (𝚒𝟹𝟸.𝚌𝚘𝚗𝚜𝚝 𝟸) 𝚒𝟹𝟸.𝚊𝚍𝚍 $$ folded into $$ (𝚒𝟹𝟸.𝚊𝚍𝚍 (𝚕𝚘𝚌𝚊𝚕.𝚐𝚎𝚝 $𝚡) (𝚒𝟹𝟸.𝚌𝚘𝚗𝚜𝚝 𝟸) $$
 
 ```wast
-;; func-like = syntax sugar?
 (func $add (param $lhs i32) (param $rhs i32) (result i32)
-    (i32.sub (get_local $lhs) (get_local $rhs)))
+  get_local $lhs
+  get_local $rhs
+  i32.add)
 
-
-;; stack
-(module
-  (func $add (param $lhs i32) (param $rhs i32) (result i32)
-    get_local $lhs
-    get_local $rhs
-    i32.add)
-  (export "add" (func $add))
-)
+;; folded into
+(func $add (param $lhs i32) (param $rhs i32) (result i32)
+    (i32.add (get_local $lhs) (get_local $rhs)))
 ```
+
+
+Gotcha - Typecheck Structural (`block`, `if`, `loop`) by labels
+------------------------------------------------------------------
+
+1. `block`, `if`, `loop` prepend label to the current `C`ontext and **labels are typed**
+   * prepend meaning they are the closest one to jump out and would indexed 0
+
+2. `br i` will jump to the `end` of the `i`-indexed block and continue from there
+   * how do we know the type after jump? 
+   * by fetching the `label`! **labels are typed**
+   * **Execution will take only as many valtypes as labels said and unwind anything else**
+
+
+Gotcha - `br`, `unreachable` - Stack Polymorphic
+------------------------------------------------------------------
+
+> PLDI 17 paper 4.1 typing rules - validation also talked about this.
+
+_value polymorphic_ is trivial.  but _stack polymorphic_ is very interesting...
+
+```wast
+(func $stkpoly (param) (result i32)
+  i32.const 1
+  block (result i32)
+    i32.const 10
+    i32.const 100
+    br 0
+    i32.add
+  end
+  i32.add
+```
+
+我们看一下 `br` 的 typing rule
+
+$$
+            C.labels[l] = [t^\ast]
+    ------------------------------------------
+    C ⊢ br l : [t_1^\ast t^\ast] -> [t_2^\ast]
+$$
+
+与 execution:
+
+$$  label_n {instr^\ast} B^l [val^n (br l)] end  ↪   val^n instr^\ast  $$
+
+
+### 0. `block` 的静态类型信息在哪？
+
+`block` 给的唯一 type 信息就是注册在 `C.labels` 里的 `label`，
+`label` 只告诉我们 `(result i32)`，所以 `$stkpoly` 的 validation 是
+
+$$
+   i32.const : i32        block : i32
+  ------------------------------------
+      i32.add : [i32 i32] -> [i32]
+    --------------------------------
+         $stkpoly : [] -> [i32]
+$$
+
+
+### 1. 但是如果是 unconditional jump，如何保证之后的 type safety?
+
+可以看到，`block` 内部其实压了两个 `i32` 如果只是 trivial 的 unconditional jump 的话，
+栈上就是 `(i32 i32 i32)(i32.add) ↪  i32 i32` 这里和 `$stkpoly (result i32)` 直接就 unsafe 了。
+
+所以 `br` 做的事情是拿到 `label` 的 arity `n`，然后只留下栈上 `n` 个 `valtype`，其他都 unwinding 掉
+
+
+### 2. Incompleteness
+
+`unreachable` code is still required to typed.
+
+```wast
+block (result i32)
+  i32.const 2
+  i32.const 1
+  br 0
+  i64.add ;; deadcode
+end
+```
+
+https://github.com/WebAssembly/spec/issues/1078
+
+> Allowing but not type-checking unreachable code would break **decomposability** and requires the spec to provide a syntactic definition of reachability
+> https://github.com/WebAssembly/design/blob/master/Rationale.md#why-polymorphic-stack-typing-after-control-transfer
+> http://webassembly.github.io/spec/core/appendix/algorithm.html
+
+
+
+
+
 
 
 
@@ -66,14 +153,14 @@ Both works...
   - `set_local` pop
   - `i32.add`   pop 2
 
-- Text format (wast: _W_eb _AS_sembly _T_ext)
+- Text format (wast: **W**eb **AS**sembly **T**ext)
   - S-expression (officially?)
     - comment line  `;; ...` 
     - comment block `(; ... ;)` 
 
 - Types
   - `i32` `i64` `f32` `f64`
-  - `[t1*] -> [t2?]` 表示一段代码的 pop 和 push (<=1 in current ver)
+  - `[t1*] -> [t2?]` 表示一段代码的 pop 和 push (`<=1` in current ver)
 
 - Func
   - `(func $add ...)`
