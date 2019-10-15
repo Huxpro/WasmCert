@@ -492,12 +492,13 @@ with const_instr : context -> instr -> Prop :=
   | CI_const : forall C v,
       C ⊢ Const v const
 
+  (* | CI_global_get *)
+
 where "C '⊢e' e 'const' " := (const_expr C e)
   and "C '⊢' instr 'const' " := (const_instr C instr).
     
 Hint Constructors const_expr.
 Hint Constructors const_instr.
-
 
 (* postpone functional type checking.
 

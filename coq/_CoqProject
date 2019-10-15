@@ -9,3 +9,7 @@ Structure.v
 Numerics.v
 Validation.v
 Execution.v
+Properties.v
+Preservation.v
+Progress.v
+Soundness.v

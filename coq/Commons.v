@@ -4,11 +4,13 @@
 (* 2019 Xuan Huang                                                   *)
 (* ***************************************************************** *)
 
-From Coq Require Export Lists.List.
-Export ListNotations.
 
 (* ################################################################# *)
 (** * Commons *)
+
+From Coq Require Export Lists.List.
+Export ListNotations.
+
 
 (* ================================================================= *)
 (** ** Notations *)

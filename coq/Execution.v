@@ -32,6 +32,8 @@ Inductive result :=
   | R_val (_: list val)
   | R_trap. (* coincident with [trap] *)
 
+(* We might need someway to coerce [admin_instr] to [result] *)
+
 
 (* ----------------------------------------------------------------- *)
 (** *** Addresses *)
@@ -445,7 +447,18 @@ End BlockContextTest.
     One way to enrich our work is to prove the (2) and (3) are equivalent.
 *)
 
+Notation thread := (frame * list admin_instr)%type.
+Notation thread_config := (store * thread)%type.
+
 Notation config := (store * frame * list admin_instr)%type.
+
+Definition thread_to_config (cfg: thread_config) : config :=
+  match cfg with
+  | (store, (F, instrs)) => (store, F, instrs)
+  end.
+
+(* does not respect the uniform inheritance condition *)
+Coercion thread_to_config : thread_config >-> config.
 
 Definition empty_config : config := (empty_store, empty_frame, []).
 

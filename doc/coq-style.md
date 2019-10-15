@@ -13,6 +13,9 @@ Use `_CoqProject` file:
 
 ```
 -Q . LF
+
+Foo.v
+Bar.v
 ```
 
 > The `coq_makefile `utility can be used to set up a build infrastructure for the Coq project based on makefiles.
@@ -20,12 +23,6 @@ Use `_CoqProject` file:
 ```sh
 coq_makefile -f _CoqProject -o Makefile
 make
-```
-
-manual `coqc`
-
-```sh
-coqc <blah>.v -Q . Wasm
 ```
 
 

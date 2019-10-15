@@ -1,4 +1,3 @@
-
 (* ***************************************************************** *)
 (* Values.v                                                          *)
 (*                                                                   *)
@@ -74,6 +73,7 @@ Definition type_of {i32 i64 f32 f64 : Type} (ops : op i32 i64 f32 f64) : valtype
   | f32 _ => T_f32
   | f64 _ => T_f64
   end.
+
 
 (* map [valtype*] to corresponding zeros *)
 

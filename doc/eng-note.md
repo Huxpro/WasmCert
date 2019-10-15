@@ -14,6 +14,99 @@ But we could follow the reference interpreter to use `CamelCase` for constructor
 This could increase some readbility in code and resolve some name conflicts.
 
 
+Distinguish ValType and FuncType
+--------------------------------------------------------
+
+Originally, I used `vt` for `valtype` and `ft` for `functype`.
+Later on I found that's the only two type and `t` could represent `valtype` without any ambigiouty.
+
+
+
+Distinguish Wasm Value and Concrete Value Representation
+--------------------------------------------------------
+
+- Wasm `val` is actually `instr`
+
+
+### Naming Convention
+
+When named inside inductive relation, we follow the Wasm spec:
+- `v` or `val` = instr `Const c : instr`
+- `c`          = concrete const representation
+
+
+But, the concrete const `c` is currently represented as
+
+```coq
+Definition val := op I32.t I64.t F32.t F64.t.
+```
+
+(Yup it's confusing...) We might change the `val` name here later....
+
+#### Type
+
+Since the `c` (or this inductive `val` definition) is a inductive def.
+We simply use defined `type_of c` to projection-then-map to `valtype`
+
+#### Problem
+
+这里**最重要的问题**在于：使用 `instr` 并不足以从类型上区分出「这是一个 `value`」。
+所以使用 `Definition val` 的好处是可以区分开来并且可以 `Coercion Const` 过去 
+但是这样的话命名就很尴尬了
+
+所以我们有 
+
+- `Const: val -> instr`
+- `⇈: val -> admin_instr`
+
+但是这样命名就比较诡异了
+
+
+### Coercion `<->` Proof-Carry
+
+#### 如果默认采用 val 然后 Coercion
+
+- `-> val`
+
+自己就是，可以和 `I32.zero` 比较
+
+- `-> instr`
+
+`Coercion Const: val >-> instr` 
+
+这个的问题在于，
+1. cast 过去信息可能会丢掉
+2. `Coercion` 经常不 work，不然如果全程都能把 `val` Coerce 成 instr 用那么完美
+
+
+#### 如果默认采用 Proof-Carry 的 dependent pair
+
+```coq
+Inductive value := 
+  | Value (i : instr) (E : ⊢v i ∈ t).
+
+(* or *)
+Record value := {i: instr ; E : ⊢v i ∈ t }.
+```
+
+- `value -> instr`
+
+```coq
+value.(i)
+```
+
+- `value -> val`  How ??? (在于 `I32.zero` cmp 时需要)
+
+```coq
+match value.(H) with
+| Value c => c       (* error *)
+end.
+```
+
+We can't eliminate proof `H` to get back a concrete `c`?
+本来以为好像 proof-carry value 要更好但是在如何获得 c 这件事上失败了
+
+
 
 Eyeball Closeness Convention
 ----------------------------
@@ -25,13 +118,16 @@ The real spec is trickier to formalize than the paper one, which is made to be c
 The coq formalization need to:
 - explicity distinguish between relation on a single instr vs. on a instruction sequences.
   * e.g. `instr` vs. `instr*`
+  * 用 mutually recursive 解决
 
 - explicity distinguish between implicit-"definitional equivalence"
   * e.g. `expr = instr*`.
+  * 这个仍然需要 investigation
 
 - choosing the generality between the most general (original paper formalization) and real-world constraints (from the real-world spec).
   * e.g. `resulttype`
     - `list` vs. `option`
+  * 用移动到 multi-value 以及 coercion 解决
 
 - explicity option type: `Some` and `None` are treat as subsumption rather than disjointed. `resulttype` could implicitly be a `Some resulttype`. and `[]` could be either `None` or `nil`
 
