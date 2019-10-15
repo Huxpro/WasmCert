@@ -14,8 +14,9 @@ From Coq Require Export Structures.Equalities.
 (* Test imports/exports *)
 
 Module ImportExportTests.
-Definition ex_fun_nu : functype := [] --> [T_i32].
-Print ex_fun_nu.
+
+  Definition ex_fun_nu : functype := [] --> [T_i32].
+
 End ImportExportTests.
 
 
@@ -128,8 +129,8 @@ Notation "C ',locals' x" :=
 Module ContextTests.
 
   (* nth is total and require default *)
-  Compute (nth 1 [1;2;3] 0).
-  Compute (idx [1;2;3] 1).
+  Example ex1 : (nth 1 [1;2;3] 0) = 2. auto. Qed.
+  Example ex2 : (idx [1;2;3] 1) = Some 2. auto. Qed.
 
   Example ex_C :=
     {|
@@ -141,19 +142,19 @@ Module ContextTests.
       C_return := None;
     |}.
 
-  Compute (idx ex_C.(C_locals) 0).
-  Compute (idx ex_C.(C_locals) 1).
-  Compute (idx ex_C.(C_locals) 2).
+  Example ex3 : (idx ex_C.(C_locals) 0) = Some T_i32. auto. Qed.
+  Example ex4 : (idx ex_C.(C_locals) 1) = Some T_i32. auto. Qed.
+  Example ex5 : (idx ex_C.(C_locals) 2) = None. auto. Qed.
 
   (* Testing Updates Notation *)
   Example ex_Crl := ex_C with_labels = [[T_i32]].
-  Compute ex_Crl.
+  (* Compute ex_Crl. *)
 
   Example ex_Crr := ex_C with_return = [T_i32].
-  Compute ex_Crr.
+  (* Compute ex_Crr. *)
 
   Example ex_Crlr := ex_C with_locals = [T_i32] with_return = [T_i32].
-  Compute ex_Crlr.
+  (* Compute ex_Crlr. *)
 
   (* Testing if break pair *)
   Example pair1 := (1,2).
@@ -161,26 +162,28 @@ Module ContextTests.
 
   (* Testing Field Cons Notation *)
   Example ex_Cc1 := ex_C,labels [T_i32]. 
-  Compute ex_Cc1.
+  (* Compute ex_Cc1. *)
 
   Example ex_Cc2 := ex_C,labels [T_f32],labels [T_i32]. 
-  Compute ex_Cc2.
+  (* Compute ex_Cc2. *)
 
   (* Testing associativity *)
   Example ex_Ca1 := ex_C ,labels [T_f32] ,labels [T_i32] with_return = [T_i32].
-  Compute ex_Ca1.
+  (* Compute ex_Ca1. *)
 
   (* Testing Indexing Notation *)
-  Compute ([1;2;3].[1] ).
+  Example i1 : ([1;2;3].[1] ) = Some 2. auto. Qed.
 
-  Compute (ex_C.(C_locals).[0]).
-  Compute (ex_C.(C_locals).[1]).
-  Compute (ex_C.(C_locals).[2]).
+  Example i2 : (ex_C.(C_locals).[0]) = Some T_i32. auto. Qed.
+  Example i3 : (ex_C.(C_locals).[1]) = Some T_i32. auto. Qed.
+  Example i4 : (ex_C.(C_locals).[2]) = None. auto. Qed.
 
-  Compute (forallb (fun ty => eqb_valtype ty T_i32) ex_C.(C_locals)).
-  Compute (all_valtype ex_C.(C_locals) T_i32).
+  Example i5 : forallb (fun ty => eqb_valtype ty T_i32) ex_C.(C_locals) = true.
+  auto. Qed.
 
-  Check Forall.
+  Example i6 : all_valtype ex_C.(C_locals) T_i32 = true.
+  auto. Qed.
+
   Example all_i32 := Forall (fun ty => ty = T_i32) (C_locals ex_C).
 
   Lemma ex_forall : all_i32.

@@ -20,10 +20,10 @@
    This might be a bug or intentional of Coq.
    Issue posted: https://github.com/coq/coq/issues/10869
  *)
+
 From Wasm Require Import Int.
 From Wasm Require Import Float.
-From Coq Require Export Lists.List.
-Export ListNotations.
+From Wasm Require Export Commons.
 
 (* ----------------------------------------------------------------- *)
 (** *** Value Types *)
@@ -72,16 +72,7 @@ Qed.
 
 Module TestValtypeEq.
 
-  Compute (all_valtype [T_i32] T_i32).
-
-  Example ex1 (ty: valtype) := if valtype_eq_dec ty T_i32 then true else false.
-
-  Compute (ex1 T_i32).
-
-  Lemma ex2: ex1(T_i32) = true.
-  Proof.
-    Abort.
-
+  Example ex1 : all_valtype [T_i32] T_i32 = true. auto. Qed.
 
 End TestValtypeEq.
   
@@ -136,13 +127,10 @@ Module TypesTest.
   Import FunctypeNotations.
 
   Example ex_fun_nu : functype := [] --> [T_i32].
-  Compute ex_fun_nu.
 
   Example ex_fun_un : functype := [T_i32] --> [T_i32].
-  Compute ex_fun_un.
 
   Example ex_fun_bin : functype := [T_i32; T_i32] --> [T_i32].
-  Compute ex_fun_bin.
 
   (* cannot looser than ++ *)
   Example ex_fun_loose : functype := ([T_i32] ++ [T_i32]) --> [T_i32].

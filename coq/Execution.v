@@ -69,7 +69,7 @@ Definition empty_moduleinst :=
 (* ----------------------------------------------------------------- *)
 (** *** Function Instances *)
 
-Print Structure.func.
+(* Print Structure.func. *)
 
 (* [func] is the AST func: 
      - type signature [F_type   : typeidx]
@@ -247,8 +247,12 @@ Module FrameTests.
   Parameter c' : val.
 
   Example F0 := empty_frame.
-  Compute F0.(A_locals).[0].  (* => None *)
-  Compute (F0 with_locals[0] = c). (* => None *)
+
+  Example F0__none : F0.(A_locals).[0] = None.
+  auto. Qed.
+
+  Example F0__updatefail : (F0 with_locals[0] = c) = fail.
+  auto. Qed.
 
   Example F1 :=
     {|
@@ -256,10 +260,10 @@ Module FrameTests.
       A_module := empty_moduleinst;
     |}.
 
-  Compute F1.(A_locals).[0].  (* => Some c *)
-  Compute (F1 with_locals[0] = c'). (* => Some F' *)
+  Example F1__some : F1.(A_locals).[0] = Some c.
+  auto. Qed.
 
-  Example upd_locals_inv: forall F',
+  Example F1_upd_locals_inv: forall F',
     (F1 with_locals[0] = c') = Some F' ->
     F'.(A_locals).[0] = Some c'.
   Proof with eauto.
@@ -399,10 +403,29 @@ Module BlockContextTest.
   Example cont := [Nop].
 
   Example B0 := B_nil vals instrs.
-  Compute (plug__B B0 [Trap]).
+  (*
+    it prints as if it's coerced
+
+      Compute (plug__B B0 [Trap]).
+
+      = [c; c; Trap; Nop]
+        : list admin_instr
+
+    But it's actually not type check.
+
+      Example pB0 : (plug__B B0 [Trap]) = [c; c; Trap; Nop].
+  *)
+
+  Example pB0 : (plug__B B0 [Trap]) = ⇈vals ++ [Trap] ++ instrs.
+  auto. Qed.
 
   Example B1 := B_cons vals (*label*) 0 cont B0 (*end*) instrs.
-  Compute (plug__B B1 [Trap]).
+
+  (*
+      Compute (plug__B B1 [Trap]).
+
+      = [c; c; Label 0 [Nop] [c; c; Trap; Nop]; Nop]
+  *)
 
 End BlockContextTest.
 
@@ -458,7 +481,7 @@ Definition thread_to_config (cfg: thread_config) : config :=
   end.
 
 (* does not respect the uniform inheritance condition *)
-Coercion thread_to_config : thread_config >-> config.
+(* Coercion thread_to_config : thread_config >-> config. *)
 
 Definition empty_config : config := (empty_store, empty_frame, []).
 
@@ -513,9 +536,12 @@ Module EvalContextTest.
   Example E1 := E_seq vals E0 instrs.
   Example E2 := E_label 0 cont E1. 
 
-  Compute (plug__E E0 [Trap]).
-  Compute (plug__E E1 [Trap]).
-  Compute (plug__E E2 [Trap]).
+  Example e0 : (plug__E E0 [Trap]) = [Trap]. auto. Qed.
+
+  (*
+    Compute (plug__E E1 [Trap]).
+    Compute (plug__E E2 [Trap]).
+  *)
 
 End EvalContextTest.
 

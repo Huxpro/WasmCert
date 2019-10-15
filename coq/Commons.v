@@ -8,6 +8,9 @@
 (* ################################################################# *)
 (** * Commons *)
 
+(* ================================================================= *)
+(** ** Common Dependency *)
+
 From Coq Require Export Lists.List.
 Export ListNotations.
 
@@ -92,23 +95,25 @@ Module OptionMonadNotations.
 
   Module Test.
 
-    Example exf :=  (fun i => i + 1) <$> (Some 0).
-    Compute exf.
+    Example exf :  (fun i => i + 1) <$> (Some 0) = Some 1.
+    auto. Qed.
 
-    Example exf__assoc := (fun i => i + 1) <$> (fun i => i + 1) <$> (Some 0).
-    Compute exf__assoc.
+    Example exf__assoc : (fun i => i + 1) <$> (fun i => i + 1) <$> (Some 0) = Some 2.
+    auto. Qed.
 
-    Example exm__some :=
+    Example three :=
       v1 <- Some 1;;
       v2 <- Some 2;;
       return (v1 + v2).
-    Compute exm__some.
+    Example exm__some : three = Some 3.
+    auto. Qed.
 
-    Example exm__none :=
+    Example none :=
       v1 <- Some 1;;
       v2 <- None;;
       return (v1 + v2).
-    Compute exm__none.
+    Example exm__none : none = None.
+    auto. Qed.
 
   End Test.
 

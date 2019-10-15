@@ -123,14 +123,11 @@ Module ValTest.
   Definition c64 := I64.zero.
 
   Example v1: val := i32 c32.
-  Compute v1.
-  Compute (rep_type_of v1).
+  Example e1: rep_type_of v1 = I32.t. auto. Qed.
 
   Example v2 : val := i64 (I64.zero).
-  Compute v2.
 
   Example vb: val := true.
-  Compute vb.
 
   Fail Example v3 := I32 c64.
 
