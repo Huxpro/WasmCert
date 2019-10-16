@@ -301,11 +301,11 @@ Inductive admin_instr :=
 
 (** lifting *)
 
-Definition lift_plains (is: list instr) : list admin_instr :=
-  List.map (fun i => Plain i) is.
+Definition lift_plains (instrs: list instr) : list admin_instr :=
+  map Plain instrs.
 
 Definition lift_vals(vals: list val) : list instr :=
-  map (fun v => Const v) vals.
+  map Const vals.
 
 (* TBD: need a code to be able to lift to Frame *)
 Definition lift_activation (a: activation) :=
@@ -321,19 +321,41 @@ Coercion Plain : instr >-> admin_instr.
 Notation "↑ instrs" := (lift_plains instrs) (at level 60).         (* \uparrow *)
 Notation "⇈ vals" := (lift_plains (lift_vals vals)) (at level 50). (* \upuparrows *)
 
-(** test *)
-
 Module AdminInstrCoercisonTest.
 
+  (* The mechanism that introduce of Coercion is tricky.
+     see [https://github.com/coq/coq/issues/10898]
+   *)
+
   Parameter c : val.
-  Example ain : admin_instr := Nop.
 
+  (* Unit tests on coerce one [instr] or [val] *)
+  Example ai__one : admin_instr := Nop.
+  Example av__one : admin_instr := c.
+
+  (* Unit tests on coerce [instr] inside list *)
   Fail Example ai__fail : list admin_instr := [Nop].
+  Program Example ai__program: list admin_instr := [Nop].
+  Example ai__coerce: list admin_instr := [Nop : admin_instr].
+  Example ai__notation : list admin_instr := ↑[Nop].
 
-  Example ais : list admin_instr := ↑[Nop].
+  (* Unit tests on coerce [val] inside list *)
+  Example av__coerceinstr : list instr := [c: instr].
+  Example av__coerceadmin : list admin_instr := [c: admin_instr].
+  Example av__notation : list admin_instr := ⇈[c].
 
-  Example avs : list admin_instr := ⇈[c].
-  Example test__app : list admin_instr := ⇈[c] ++ ais.
+  (* [c] took two Coercion path: [val >-> instr >-> admin_instr] *)
+  Example app__coerce: list admin_instr := [c: admin_instr] ++ [Nop: admin_instr].
+
+  (* too complicated even for this [Program] to work *)
+  Fail Program Example app__program := [c] ++ [Nop].
+
+  (* could not coerce a [list X] directly. *)
+  Example vs := [c].
+  Fail Example app__coercelist := vs : list admin_instr.
+
+  (* Notation is still the most elegant approach *)
+  Example app__notation : list admin_instr := ⇈[c] ++ ↑[Nop].
 
   Example a : activation :=
     {|
@@ -411,21 +433,20 @@ Module BlockContextTest.
       = [c; c; Trap; Nop]
         : list admin_instr
 
-    But it's actually not type check.
+    But simply doing this would not type check.
 
       Example pB0 : (plug__B B0 [Trap]) = [c; c; Trap; Nop].
+
+    [Program Example] provide extra Coercion hint:
   *)
 
-  Example pB0 : (plug__B B0 [Trap]) = ⇈vals ++ [Trap] ++ instrs.
+  Program Example pB0 : (plug__B B0 [Trap]) = [c; c; Trap; Nop].
   auto. Qed.
 
   Example B1 := B_cons vals (*label*) 0 cont B0 (*end*) instrs.
-
-  (*
-      Compute (plug__B B1 [Trap]).
-
-      = [c; c; Label 0 [Nop] [c; c; Trap; Nop]; Nop]
-  *)
+  Program Example pB1 :
+    (plug__B B1 [Trap]) = [c; c; Label 0 [Nop] [c; c; Trap; Nop]; Nop].
+  Proof. auto. Qed.
 
 End BlockContextTest.
 
@@ -536,15 +557,16 @@ Module EvalContextTest.
   Example E1 := E_seq vals E0 instrs.
   Example E2 := E_label 0 cont E1. 
 
-  Example e0 : (plug__E E0 [Trap]) = [Trap]. auto. Qed.
+  Example e0 : (plug__E E0 [Trap]) = [Trap].
+  auto. Qed.
 
-  (*
-    Compute (plug__E E1 [Trap]).
-    Compute (plug__E E2 [Trap]).
-  *)
+  Program Example e1 : (plug__E E1 [Trap]) = [c; c; Trap; Nop].
+  auto. Qed.
+
+  Program Example e2 : (plug__E E2 [Trap]) =  [Label 0 [Nop] [c; c; Trap; Nop]].
+  auto. Qed.
 
 End EvalContextTest.
-
 
 
 (* ================================================================= *)
@@ -599,6 +621,8 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Numeric Instruction *)
 
+(* technically, the [c] here are typed [tc : val] *)
+
   | SS_unop__some : forall op c1 c,
       eval_unop op c1 = Ok (Some c) ->
       ↑[Const c1; Unop op] ↪s ↑[Const c]
@@ -615,7 +639,7 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
       eval_binop op c1 c2 = Ok None ->
       ↑[Const c1; Const c2; Binop op] ↪s [Trap]
 
-  | SS_testop: forall op c1 c,
+  | SS_testop: forall op c1 (c: bool),
       eval_testop op c1 = Ok c ->
       ↑[Const c1; Testop op] ↪s ↑[Const c]
 
@@ -626,16 +650,30 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Parametric Instruction *)
 
-  | SS_drop : forall c,
-      ↑[Const c; Drop] ↪s []
+  | SS_drop : forall (val: val),
+      let val : instr := val in
+      ↑[val; Drop] ↪s []
 
-  | SS_select1 : forall c1 c2 c,
+  (* A exprimental alternative definition using per item Coercion *)
+  | SS_select1 : forall (val1 val2 : val) c,
+      let val1 : instr := val1 in
+      let val2 : instr := val2 in
       c <> I32.zero ->
-      ↑[Const c1; Const c2; Const (i32 c); Select] ↪s ↑[Const c1]
+      ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val1]
 
-  | SS_select2 : forall c1 c2 c,
+  | SS_select2 : forall (val1 val2 : val) c,
+      let val1 : instr := val1 in
+      let val2 : instr := val2 in
       c = I32.zero ->
-      ↑[Const c1; Const c2; Const (i32 c); Select] ↪s ↑[Const c2]
+      ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val2]
+
+  (* | SS_select1 : forall c1 c2 c, *)
+  (*     c <> I32.zero -> *)
+  (*     ↑[Const c1; Const c2; Const (i32 c); Select] ↪s ↑[Const c1] *)
+
+  (* | SS_select2 : forall c1 c2 c, *)
+  (*     c = I32.zero -> *)
+  (*     ↑[Const c1; Const c2; Const (i32 c); Select] ↪s ↑[Const c2] *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction *)
@@ -660,11 +698,11 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 
   | SS_br_table__i : forall ls l__N l__i (i: nat),
       ls.[i] = Some l__i ->
-      ↑[Const i; Br_table ls l__N]  ↪s  ↑[Br l__i]
+      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__i]
 
   | SS_br_table__N : forall ls l__N (i: nat),
       length ls <= i ->
-      ↑[Const i; Br_table ls l__N]  ↪s  ↑[Br l__N]
+      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__N]
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction - Function Call Related *)
@@ -696,6 +734,10 @@ Inductive step_config : config -> config -> Prop :=
 
 (* ----------------------------------------------------------------- *)
 (** *** Lifting ↪s *)
+(** simple (no S or F involved) and plain (non-admin) are different:
+    - admin instrs always take a non-simple step.
+    - plain instrs might take a non-simple step as well.
+ *)
 
   | SC_simple : forall S F instrs instrs',
       instrs ↪s instrs' ->
@@ -791,7 +833,7 @@ Inductive step_config : config -> config -> Prop :=
       f.(FI_type) = ft ->
 
       (* Coercion [nat_to_i32] happened to [i] here. *)
-      (S, F, ↑[Const i; Call_indirect x]) ↪ (S, F, [Invoke a])
+      (S, F, ↑[Const (i32 (i: I32.t)); Call_indirect x]) ↪ (S, F, [Invoke a])
 
   | SS_call_indirect__trap : forall S F i x,
       (S, F, ↑[Const (i32 i); Call_indirect x]) ↪ (S, F, [Trap])
@@ -870,7 +912,6 @@ Inductive step_config : config -> config -> Prop :=
     (S, F, ↑instrs) ↪ (S', F', ↑instrs') 
 
 where "cfg1 '↪' cfg2" := (step_config cfg1 cfg2).
-
 
 
 (* ================================================================= *)

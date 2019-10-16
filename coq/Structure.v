@@ -234,6 +234,8 @@ Record func :=
 (* ----------------------------------------------------------------- *)
 (** *** Tables *)
 
+(* In the current version of WebAssembly, at most one table may be defined or imported in a single module, and all constructs implicitly reference this table *)
+
 Record table :=
   {
     T_type : tabletype;

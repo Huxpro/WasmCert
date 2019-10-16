@@ -108,7 +108,6 @@ Notation "C ',labels' x" :=
   (cons_labels C x)
   (at level 68, left associativity) : wasm_scope.
 
-
 Definition cons_locals (C: context) (x: valtype) :=
   {|
     C_locals := x :: C.(C_locals);
@@ -122,6 +121,21 @@ Notation "C ',locals' x" :=
   (cons_locals C x)
   (at level 68, left associativity) : wasm_scope.
 
+
+(** functional update - prepend on fields *)
+
+Definition prepend_locals (C: context) (xs: list valtype) :=
+  {|
+    C_locals := xs ++ C.(C_locals);
+    C_types := C.(C_types);
+    C_funcs := C.(C_funcs);
+    C_tables := C.(C_tables);
+    C_labels := C.(C_labels);
+    C_return := C.(C_return);
+  |}.
+Notation "C ',locals*' xs" :=  
+  (prepend_locals C xs)
+  (at level 68, left associativity) : wasm_scope.
 
 
 (** Tests *)
@@ -161,6 +175,9 @@ Module ContextTests.
   Example pair2 := (1, 2).
 
   (* Testing Field Cons Notation *)
+  Example ex_Cc0 := ex_C,locals* [T_i32]. 
+  (* Compute ex_Cc0. *)
+
   Example ex_Cc1 := ex_C,labels [T_i32]. 
   (* Compute ex_Cc1. *)
 
@@ -264,6 +281,23 @@ where "'⊢ft' ft 'ok' " := (valid_functype ft).
 Hint Constructors valid_functype.
 
 
+(* This is not explicitly defined but occured as
+
+     (⊢ functype ok)*
+
+*)
+Reserved Notation "'⊢ft*' fts 'ok'" (at level 70).
+Inductive valid_functypes : list functype -> Prop :=
+
+  | VFTS: forall fts,
+      Forall (fun ft => ⊢ft ft ok) fts ->
+      ⊢ft* fts ok
+
+where "'⊢ft*' fts 'ok' " := (valid_functypes fts).
+
+Hint Constructors valid_functypes.
+
+
 (* ----------------------------------------------------------------- *)
 (** *** Table Types *)
 
@@ -276,7 +310,6 @@ Inductive valid_tabletype : tabletype -> Prop :=
 
 where "'⊢tt' tt 'ok' " := (valid_tabletype tt).
 
-Hint Constructors valid_tabletype.
 
 (* ----------------------------------------------------------------- *)
 (** *** Memory Types *)
@@ -302,8 +335,8 @@ Hint Constructors valid_tabletype.
  *)
 
 
-Reserved Notation "C '⊢' instr '∈' ty" (at level 70).
-Reserved Notation "C '⊢*' instrs '∈' ty" (at level 70).
+Reserved Notation "C '⊢' instr '∈' ft" (at level 70).
+Reserved Notation "C '⊢*' instrs '∈' ft" (at level 70).
 
 
 Inductive valid_instr : context -> instr -> functype -> Prop :=
@@ -429,7 +462,8 @@ Inductive valid_instr : context -> instr -> functype -> Prop :=
 (** *** Instruction Sequences *)
 (** http://webassembly.github.io/spec/core/valid/instructions.html#instruction-sequences *)
 
-with valid_seq : context -> list instr -> functype -> Prop :=
+with valid_instrs : context -> list instr -> functype -> Prop :=
+
   | VIS_empty : forall C ts,
       C ⊢* [] ∈ ts --> ts
 
@@ -438,11 +472,11 @@ with valid_seq : context -> list instr -> functype -> Prop :=
       C ⊢* instrs ∈ ts1 --> (ts0 ++ ts) ->
       C ⊢* instrs ++ [instr__N] ∈ ts1 --> (ts0 ++ ts3)
 
-where "C '⊢' instr '∈' ty" := (valid_instr C instr ty)
-  and "C '⊢*' instrs '∈' ty" := (valid_seq C instrs ty).
+where "C '⊢' instr '∈' ft" := (valid_instr C instr ft)
+  and "C '⊢*' instrs '∈' ft" := (valid_instrs C instrs ft).
 
 Hint Constructors valid_instr.
-Hint Constructors valid_seq.
+Hint Constructors valid_instrs.
 
 
 (* postpone functional type checking.
@@ -532,6 +566,26 @@ Inductive valid_func : context -> func -> functype -> Prop :=
       C ⊢f {| F_type := x; F_locals := ts; F_body := expr |} ∈ ts1 --> ts2
 
 where "C '⊢f' f ∈ ft" := (valid_func C f ft).
+Hint Constructors valid_functypes.
+
+(* This is not explicitly defined but occured as
+
+     (⊢ func : ft)*
+
+   when typing modules as a pairwise relation.
+
+   > Let ft∗ be the concatenation of the internal function types fti, in index order.
+*)
+
+Reserved Notation "C '⊢f*' fs ∈ fts" (at level 70).
+Inductive valid_funcs : context -> list func -> list functype -> Prop :=
+
+  | VFS: forall C fs fts,
+      Forall2 (fun func ft => C ⊢f func ∈ ft) fs fts ->  
+      C ⊢f* fs ∈ fts
+
+where "C '⊢f*' fs ∈ fts" := (valid_funcs C fs fts).
+Hint Constructors valid_funcs.
 
 
 Module FuncTyTest.
@@ -577,11 +631,31 @@ Fixpoint check_func (C: context) (f: func) :=
 Reserved Notation "C '⊢t' t ∈ tt" (at level 70).
 Inductive valid_table : context -> table -> tabletype -> Prop :=
 
-  | VT : forall C tablety,
-      ⊢tt tablety ok ->
-      C ⊢t {| T_type := tablety |} ∈ tablety
+  | VT : forall C tt,
+      ⊢tt tt ok ->
+      C ⊢t {| T_type := tt |} ∈ tt
 
 where "C '⊢t' t ∈ tt" := (valid_table C t tt).
+Hint Constructors valid_table.
+
+(* This is not explicitly defined but occured as
+
+     (⊢ table : tt)*
+
+   when typing modules as a pairwise relation.
+
+   > Let tt∗ be the concatenation of the internal table types tti, in index order.
+*)
+
+Reserved Notation "C '⊢t*' ts ∈ tts" (at level 70).
+Inductive valid_tables : context -> list table -> list tabletype -> Prop :=
+
+  | VTS: forall C ts tts,
+      Forall2 (fun table tt => C ⊢t table ∈ tt) ts tts ->
+      C ⊢t* ts ∈ tts
+
+where "C '⊢t*' ts '∈' tts" := (valid_tables C ts tts).
+Hint Constructors valid_tables.
 
 
 (* ----------------------------------------------------------------- *)
@@ -596,26 +670,35 @@ where "C '⊢t' t ∈ tt" := (valid_table C t tt).
 
 Reserved Notation "'⊢' M ∈ ty" (at level 70).
 Inductive valid_module: module -> functype -> Prop :=
-  | VM : forall M its ets fts ts,
+  | VM : forall its ets fts tts functypes funcs tables,
+
+(* Let C be a context where: *)
       let
         C := {|
-          C_types := M.(M_types);
-          C_funcs := fts;
-          C_tables := ts;
+          C_types := functypes;
+          C_funcs := fts;  (* ++ ifts *)
+          C_tables := tts; (* ++ itts *)
           C_locals := [];
           C_labels := [];
           C_return := None;
         |}
       in
-      (* this has been removed in multi-value *)
-      Forall (fun functype => ⊢ft functype ok) M.(M_types) ->
 
-      (* pairwise related *)
-      Forall2 (fun func ft => C ⊢f func ∈ ft) M.(M_funcs) fts ->  
+      (* N.B. this has been removed in multi-value *)
+        ⊢ft* functypes ok ->
 
-      Forall (fun table => C ⊢t table ∈ table.(T_type)) M.(M_tables) ->
+      C ⊢f* funcs ∈ fts ->
+      C ⊢t* tables ∈ tts ->
 
-      ⊢ M ∈ its --> ets
+      (* length limitatin of current Wasm version *)
+      length C.(C_tables) <= 1 ->
+      (* length C.(C_mems) <= 1 -> *)
+
+      ⊢ {|
+           M_types := functypes;
+           M_funcs := funcs;
+           M_tables := tables;
+        |} ∈ its --> ets
       
 where "'⊢' M ∈ ty" := (valid_module M ty).
 

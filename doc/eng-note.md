@@ -22,15 +22,30 @@ Later on I found that's the only two type and `t` could represent `valtype` with
 
 
 
-Distinguish Wasm Value and Concrete Value Representation
---------------------------------------------------------
+Distinguish Wasm Value and Concrete Value/Constant Representation
+-----------------------------------------------------------------
 
-- Wasm `val` is actually `instr`
+- Wasm `val` IS `instr`
+
+### Planned Solution.
+
+- `val` always mean Coerced `val >-> instr`  i.e. `val = Const v`
+- `v` always mean polymorphic (and type-dependent) value, i.e. `v = i32 c`
+  - alternative name `tc` (typed const)
+  - alternative name `pv` (polymorphic value)
+  - alternative name `cv` (concrete value)
+- `c` or `i` (when used as index) always mean const (w/o type) `c`
+
+- `op I32.t I64.t F32.t F64.t.` should be seen as a convenience for establish type-dependent value in the meta-language 
+  - it could be named as `value` or `typed_const` to distinguish with above `val`
+  - it could still be name as `val` 
+    * they are Equal up to one `Coercion`
+    * so we can still write `list val`. (and we assume the use of above `val` is a local shadowing)
 
 
 ### Naming Convention
 
-When named inside inductive relation, we follow the Wasm spec:
+Currently, When named inside inductive relation, we follow the Wasm spec:
 - `v` or `val` = instr `Const c : instr`
 - `c`          = concrete const representation
 

@@ -63,6 +63,17 @@ Arguments f64 {i32} {i64} {f32} {f64} _.
 
 Definition val := op I32.t I64.t F32.t F64.t.
 
+(* We wanted to write [nat_to_i32] as a coerce [nat >-> I32.t] rather than from [nat >-> val]
+   so in the [SS_br_table] we can write [Const i32 i] to better match the spec
+   but we will encounter the issue that [op I32.t ?i64 ?f32 ?f64] not typecheck with [val].
+   so we introduce coercion [I32.t >-> val] to finally solve this path hole.
+ *)
+
+Definition i32_to_val (i: I32.t) : val :=
+  i32 i.
+  
+Coercion i32_to_val: I32.t >-> val.
+
 
 (* functor map ops to wasm types. *)
 
@@ -99,22 +110,22 @@ Definition rep_type_of {i32 i64 f32 f64 : Type} (ops : op i32 i64 f32 f64) : Typ
 
 (* bool is represented as i32 *)
 
-Definition bool_to_i32 (b : bool) : val :=
+Definition bool_to_i32 (b : bool) : I32.t :=
   match b with
-  | true => i32 I32.one
-  | false => i32 I32.zero
+  | true => I32.one
+  | false => I32.zero
   end.
-Coercion bool_to_i32 : bool >-> val.
+Coercion bool_to_i32 : bool >-> I32.t.
 
 
-(* nat is used to index vector *)
+(* nat is used when indexing into vector *)
 
-Definition nat_to_i32 (n : nat) : val :=
+Definition nat_to_i32 (n : nat) : I32.t:=
   match n with
-  | 0 => i32 I32.zero
-  | n => i32 (I32.from_nat n)
+  | 0 => I32.zero
+  | n => (I32.from_nat n)
   end.
-Coercion nat_to_i32 : nat >-> val.
+Coercion nat_to_i32 : nat >-> I32.t.
 
 
 Module ValTest.

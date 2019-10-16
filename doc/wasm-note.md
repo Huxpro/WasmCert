@@ -22,15 +22,41 @@ set_global -> global.set
 i32.wrap/i64 -> i32.wrap_i64
 i32.trunc_s/f32 -> i32.trunc_f32_s
 ...
-
 ```
+
+
+Gotcha - Assembler Name (Text Format)
+------------------------------------
+
+As MIPS where we use `$r0` to alias first register,
+Wasm allow `$`-prefixed alias name. 
+
+```wast
+(func (param i32) (param f32) (local f64)  ;; unnamed
+  local.get 0
+  local.get 1
+  local.get 2)
+
+;; for convenience
+(func (param $p0 i32) (param $p1 f32) (local $x0 f64)  ;; aliased
+  local.get $p0
+  local.get $p1
+  local.get $x0)
+```
+Assembler will compute those assembler-time mnemonics into integer index: `$p0 -> 0` `$x0 -> 2`.
+
 
 Gotcha - Folded Form (Text Format)
 ----------------------------------
 
-> https://webassembly.github.io/spec/core/text/instructions.html#folded-instructions
+> <https://webassembly.github.io/spec/core/text/instructions.html#folded-instructions>
 
-$$ (𝚕𝚘𝚌𝚊𝚕.𝚐𝚎𝚝 $𝚡) (𝚒𝟹𝟸.𝚌𝚘𝚗𝚜𝚝 𝟸) 𝚒𝟹𝟸.𝚊𝚍𝚍 $$ folded into $$ (𝚒𝟹𝟸.𝚊𝚍𝚍 (𝚕𝚘𝚌𝚊𝚕.𝚐𝚎𝚝 $𝚡) (𝚒𝟹𝟸.𝚌𝚘𝚗𝚜𝚝 𝟸) $$
+```wast
+(local.get $x) (local.const 2) i32.add
+
+;; folded into
+(i32.add (local.get $x) (local.const 2))
+```
 
 ```wast
 (func $add (param $lhs i32) (param $rhs i32) (result i32)
@@ -131,27 +157,11 @@ https://github.com/WebAssembly/spec/issues/1078
 
 
 
+Wasm - Misc
+-----------
 
-
-
-
-
-
-[Understanding WebAssembly text format
-](https://developer.mozilla.org/en-US/docs/WebAssembly/Understanding_the_text_format)
--------------------------------------
-
-- Stack memory
-  - `param i32`
-  - `local $name f64`
-  - `get_local 0` / `get_local $name`
-    - when called with index, the indexed starts from parameter
-    - `param` is just assembler-time mnemonics 
-
-- Stack Machine
-  - `get_local` push
-  - `set_local` pop
-  - `i32.add`   pop 2
+> `Wasm-` prefixed sections are thoughts after reading this tutorial:
+> [Understanding WebAssembly text format](https://developer.mozilla.org/en-US/docs/WebAssembly/Understanding_the_text_format)
 
 - Text format (wast: **W**eb **AS**sembly **T**ext)
   - S-expression (officially?)
@@ -170,30 +180,30 @@ https://github.com/WebAssembly/spec/issues/1078
 - Module
 
 
-### `add` example
+Wasm - Export
+-----------------
 
 ```wast
 (module
-  (func $add (param $lhs i32) (param $rhs i32) (result i32)
-    get_local $lhs
-    get_local $rhs
-    i32.add)
-  (export "add" (func $add))   
+  (func $add ...)
+  (export "add" (func $add))
 )
 ```
 
-
-### exporting to JS / shorthand `export`
+shorthand `export`:
 
 ```wast
 (module
   (func $getAnswer (result i32)
     i32.const 42)
-  (func (export "getAnswerPlus1") (result i32)  ;; declared export
+  (func (export "getAnswerPlus1") (result i32)  ;; shorthand export
     call $getAnswer  ;; call function at same module!
     i32.const 1
     i32.add))
 ```
+
+JS side, use `instance.exports` to use
+
 ```js
 WebAssembly.instantiateStreaming(fetch('call.wasm'))
  .then(obj => {
@@ -202,57 +212,210 @@ WebAssembly.instantiateStreaming(fetch('call.wasm'))
 ```
 
 
-### importing from JS
+Wasm - Import
+-----------------
+
+Wasm has a _two-level namespace_.
+According to spec, the `import` is:
+
+$$
+import ::= {module name, name name, desc importdesc}
+importdesc ::= func typeidx | table ... | mem ... | global ...
+$$
+
+Why `func typeidx` (it's `func funcidx` in `exportdesc`)?
+Because they are `hostfunc`:
+
+$$
+funcinst ::= {type functype, hostcode hostfunc}   -- 可以看到只有 type
+hostfunc ::= ...
+$$
 
 ```wast
 (module
-  (import "console" "log" (func $log (param i32)))
+  ;; Import 在 consolo log 之后的其实是一个 functype 的声明，只不过给了 name 方便 refer
+  (import "console" "log" (func $log (param i32))) 
+
+  ;; Export 这时 export 的就是 funcidx 了，只不过我们这里用了语法糖，实际上是单独的 func decl 与单独的 export
   (func (export "logIt")
-    i32.const 13  ;; parameter pushed to stack
+    i32.const 13
     call $log))
 ```
+
+这种 import 机制不限于 JS，而是通用的。Wasm 从哪知道 `module: "console" name: "log"` 呢？
+答案是，JS 这边需要「造」一个这样的结构：
+
 ```js
 var importObject = {
-  console: {
-    log: function(arg) {
-      console.log(arg);   }}};
+  console: {                // module
+    log: function(arg) {    // name
+      console.log(arg);
+  }}};
 
 WebAssembly.instantiateStreaming(fetch('logger.wasm'), importObject)
   .then(obj => {
-    obj.instance.exports.logIt();
+    obj.instance.exports.logIt();  // 13
   });
 ```
 
 
-### globals 
+Wasm - Globals
+--------------
 
 > global, accessible from both JS and across `WAsm.Module` instances
 > this allows _dynamic linking_ of multiple modules
 
 ```wast
 (module
-   (global $g (import "js" "global") (mut i32))
-   (func (export "getGlobal") (result i32)
+   (global $g (import "js" "global") (mut i32))   ;; declare a global from imports as mut i32
+   (func (export "getGlobal") (result i32)        ;; export getter/setter
         (get_global $g))
    (func (export "incGlobal")
         (set_global $g
             (i32.add (get_global $g) (i32.const 1))))
 )
 ```
+
+make a global from JS side.
+同样也是用 `instantiate(module, importObject)` 的 `importObject` 扔进去
+WebAssembly JS Interface 会在中间做一层 validation
+
 ```js
 const global = new WebAssembly.Global({value: "i32", mutable: true}, 0);
 ```
 
 
-### Wasm Memory
+Wasm - Linear Memory
+--------------------
 
-> WebAssembly provides _memory_. 
-> memory is just a _large array of bytes_ that can grow over time. 
+> WebAssembly provides _memory_.
+> memory is just a _large array of bytes_ that can grow over time.
+
+### From Wasm, an `i32` address-able
+
+Currently, only *Wasm32* is supported, provides 4GB in total
 
 - `i32.load`  reading and
 - `i32.store` writing from linear memory
 
+### From JS, an (resizable) `ArrayBuffer`
 
+```js
+function consoleLogString(offset, length) {
+  var bytes = new Uint8Array(memory.buffer, offset, length);    // memory.buffer 取出 `ArrayBuffer`
+  var string = new TextDecoder('utf8').decode(bytes);
+  console.log(string);
+}
+```
+
+### Interop1 - Wasm Create Memory, Export to JS
+
+然后直接 export 给 JS 侧
+
+
+### Interop2 - JS Create Memory, Wasm Import
+
+```js
+var memory = new WebAssembly.Memory({initial:1});
+var importObject = { console: { log: consoleLogString }, js: { mem: memory } };
+WebAssembly.instantiateStreaming(fetch('logger2.wasm'), importObject)
+  .then(obj => {
+    obj.instance.exports.writeHi();
+  });
+```
+
+```wast
+(import "js" "mem" (memory 1))  ;; 1 means i page (Wasm defined it to be 64 KB)
+```
+
+### `data` section
+
+```wast
+(module
+  (import "console" "log" (func $log (param i32 i32)))
+  (import "js" "mem" (memory 1))
+  (data (i32.const 0) "Hi")         ;; data section，类似 native object file 中的 .data segmentation.
+  (func (export "writeHi")
+    i32.const 0  ;; pass offset 0 to log
+    i32.const 2  ;; pass length 2 to log
+    call $log))
+```
+
+这里也就是说，让 JS 侧以 `Uint8Array` 的形式解读 Memory，然后取两个 Byte 再以 `utf8` 方式 decode 为 string，刚好就是 `Hi`
+
+
+Wasm - Tables
+------------------
+
+> Tables are basically *resizable arrays of references* that can be accessed by index from WebAssembly code.
+
+可以看到 `call funcidx` take a static func index，是静态派发的
+那么如果我们要调用的函数是 *runtime value* （动态派发）怎么办?
+
+比如说:
+- First-class Function (e.g. JS)                  => Closure {code_ptr, env_ptr}
+- Function Pointer (e.g. C/C++)                   => Fun Ptr {code_ptr}
+- Virtual Method/Function/Call  (e.g. C++/Java)   => VTable  {code_ptr, code_ptr, code_ptr...}
+
+所以 Wasm 就有了 `i32.const idx; call_indirect typeidx`
+那么这个 `idx` 存哪呢...解决方案就是这个 Table
+
+Hux:
+尽管 Closure 也是 funcref，但是由于 Wasm 有特殊的 `Call` 而非 Jump，这部分是可以 typed 到的（比较强的 validation）
+
+### `elem` section and `funcref`
+
+`elem` 类似 `data` 用于定义特殊的静态 section
+目前的 `elemtype` 也只有 `funcref` （其实就是 `anyfunc`，需要动态 check）
+
+```wast
+(module
+  (table 2 funcref)            ;; initial size: 2; elemtype: funcref
+  (func $f1 (result i32)
+    i32.const 42)
+  (func $f2 (result i32)
+    i32.const 13)
+  (elem (i32.const 0) $f1 $f2) ;; 0 是 offset，因为只能有一个 table，所以可以多次 populate
+  ...
+)
+```
+
+### From JS
+
+```js
+function() {
+  // table section
+  var tbl = new WebAssembly.Table({initial:2, element:"funcref"});
+
+  // function sections:
+  var f1 = /* some imported WebAssembly function */
+  var f2 = /* some imported WebAssembly function */
+
+  // elem section
+  tbl.set(0, f1);
+  tbl.set(1, f2);
+};
+```
+
+### Using the table
+
+由于 `funcref` 是 `anyfunc`，
+所以这里我们通过 statically annotate 一个 *presumed type* 到这个 FFI boundary（这样其他部分可以用这个静态信息）
+然后通过一个运行时 check 来保证 soundness，如果不 match 的话就 `Trap` (`WebAssembly.RuntimeError`)
+
+```wast
+(type $return_i32 (func (result i32)))  ;; if this was f32, (dynamically) type checking would fail
+(func (export "callByIndex") (param $i i32) (result i32)
+  local.get $i
+  call_indirect (type $return_i32))
+```
+
+目前只有一个 Table，所以 `call_indirect` 直接 implicitly call `table[0]`
+In the future, when multiple tables are allowed:
+
+```wast
+(call_indirect $table (type $ft))  ;; folded syntax
+```
 
 
 
@@ -353,13 +516,6 @@ B^k+1 ::= val* label_n{instr*} B^k end instr*
 
 
 
-WASM 17 PLDI
-============
-
-
-
-
-
 Thoughts
 ========
 
@@ -442,7 +598,6 @@ What are some of the defining features of WASM (that possibily affect formalizat
 - JavaScript as FFI
   - access by JS via `ArrayBuffer`
   - and `SharedArrayBuffer` for multi-threading WASM
-
 
 
 
