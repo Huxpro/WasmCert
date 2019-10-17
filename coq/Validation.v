@@ -79,9 +79,9 @@ Notation "C 'with_labels' = x" :=
   (replace_labels C x)
   (at level 69, left associativity) : wasm_scope.
 
-Definition replace_return (C: context) (x: resulttype) :=
+Definition replace_return (C: context) (x: option resulttype) :=
   {|
-    C_return:= Some x;
+    C_return:= x;
     C_types := C.(C_types);
     C_funcs := C.(C_funcs);
     C_tables := C.(C_tables);
@@ -164,10 +164,10 @@ Module ContextTests.
   Example ex_Crl := ex_C with_labels = [[T_i32]].
   (* Compute ex_Crl. *)
 
-  Example ex_Crr := ex_C with_return = [T_i32].
+  Example ex_Crr := ex_C with_return = Some [T_i32].
   (* Compute ex_Crr. *)
 
-  Example ex_Crlr := ex_C with_locals = [T_i32] with_return = [T_i32].
+  Example ex_Crlr := ex_C with_locals = [T_i32] with_return = Some [T_i32].
   (* Compute ex_Crlr. *)
 
   (* Testing if break pair *)
@@ -185,7 +185,7 @@ Module ContextTests.
   (* Compute ex_Cc2. *)
 
   (* Testing associativity *)
-  Example ex_Ca1 := ex_C ,labels [T_f32] ,labels [T_i32] with_return = [T_i32].
+  Example ex_Ca1 := ex_C ,labels [T_f32] ,labels [T_i32] with_return = Some [T_i32].
   (* Compute ex_Ca1. *)
 
   (* Testing Indexing Notation *)
@@ -562,7 +562,7 @@ Inductive valid_func : context -> func -> functype -> Prop :=
 
   | VF : forall C x ts expr ts1 ts2,
       C.(C_types).[x] = Some (ts1 --> ts2) ->
-      C with_locals = (ts1 ++ ts) with_labels = [ts2] with_return = ts2 ⊢e expr ∈ ts2 ->
+      C with_locals = (ts1 ++ ts) with_labels = [ts2] with_return = Some ts2 ⊢e expr ∈ ts2 ->
       C ⊢f {| F_type := x; F_locals := ts; F_body := expr |} ∈ ts1 --> ts2
 
 where "C '⊢f' f ∈ ft" := (valid_func C f ft).
@@ -620,7 +620,7 @@ End FuncTyTest.
 Fixpoint check_func (C: context) (f: func) :=
   let '(Build_func type locals body) := f in
   let '(ts1 --> ts2) := C.(C_types).[type] in
-  let C' = C, locals__s (ts1 ++ ts), labels ts2 with_return = ts2 in
+  let C' = C, locals__s (ts1 ++ ts), labels ts2 with_return = Some ts2 in
   check_expr C' body ts2.
 *)
 

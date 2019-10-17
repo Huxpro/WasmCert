@@ -7,11 +7,14 @@
 (* ################################################################# *)
 (** * Preservation *)
 
-From Wasm Require Import Validation.
-From Wasm Require Import Execution.
+From Wasm Require Export Validation.
+From Wasm Require Export Execution.
+From Wasm Require Export ExtendedValidation.
 
+Theorem preservation : forall S T S' T' rt,
+    ⊢c (S, T) ∈ rt ->
+    $(S, T) ↪ $(S', T') ->
+    ⊢c (S', T') ∈ rt /\ ⊢S S ⪯ S'.
+Proof.
+  Abort.
 
-(*
-Theorem preservation : forall S T,
-    ⊢ S; T
-*)

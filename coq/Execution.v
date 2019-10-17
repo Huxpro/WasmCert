@@ -454,18 +454,21 @@ End BlockContextTest.
 (* ----------------------------------------------------------------- *)
 (** *** Configurations *)
 
-(** There could be multiple settings on the configurations:
+(** Notes on the configurations:
 
-    (1) threading.
+    (1) The spec defined configuration as store and an executing thread.
    
           Notation thread := (frame * (list admin_instr))%type.
           Notation config := (store * thread)%type.
 
 
-    (2) arbitray [admin_instr\ast] as control, or code
+    (2) However, the step relation is actually defined in terms of a 3-tuple.
 
           Notation config := (store * frame * (list admin_instr))%type.
 
+        This make sense since instructions currently-defined are single-threaded,
+        i.e., the machine always take a step in one thread.
+       
         This has benefit that being closer to the spec sometimes.
         the spec use the notation of execution context implicitly use
         the _composed_ version and _decomposed_ version interchangbly.
@@ -476,7 +479,8 @@ End BlockContextTest.
         that any [list admin_instr] share the [unique decomposition] properties
         on the first occurence of [val].
 
-    (3) make code a product type
+
+    (3) Alternative is to be closer to OCaml ref interpeter.
 
           Notation code := (list val * list admin_instr)%type.
           Notation config := (store * frame * code)%type.
@@ -491,20 +495,25 @@ End BlockContextTest.
     One way to enrich our work is to prove the (2) and (3) are equivalent.
 *)
 
-Notation thread := (frame * list admin_instr)%type.
-Notation thread_config := (store * thread)%type.
+Definition thread : Type := frame * list admin_instr.
+Definition config : Type := store * thread.
 
-Notation config := (store * frame * list admin_instr)%type.
+Definition empty_thread : thread := (empty_frame, []).
+Definition empty_config : config := (empty_store, empty_thread).
 
-Definition thread_to_config (cfg: thread_config) : config :=
+(* S; F; instrs *)
+Notation S_F_instrs := (store * frame * list admin_instr)%type.
+
+Definition config_to_tuple (cfg: config) : S_F_instrs :=
   match cfg with
   | (store, (F, instrs)) => (store, F, instrs)
   end.
 
-(* does not respect the uniform inheritance condition *)
-(* Coercion thread_to_config : thread_config >-> config. *)
+(* Coercion config_to_tuple : config >-> S_F_instrs. *)
+(* coercion is useless except confusing things during proof. *)
 
-Definition empty_config : config := (empty_store, empty_frame, []).
+Notation "'$' cfg" := (config_to_tuple cfg) (at level 49).
+
 
 
 (* ----------------------------------------------------------------- *)
@@ -612,9 +621,8 @@ End EvalContextTest.
  *)
 
 
-(* In terms of name, we might want to merge [SS] and [SC] into one. *)
+(* TODO: In terms of name, we might want to merge [SS] and [SC] into one? *)
 
-(* Simple Step *)
 Reserved Notation "instrs1 '↪s' instrs2" (at level 70).
 Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 
@@ -728,9 +736,11 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 
 where "instrs1 '↪s' instrs2"  := (step_simple instrs1 instrs2).
 
-(* Config Step *)
-Reserved Notation "cfg1 '↪' cfg2" (at level 40).
-Inductive step_config : config -> config -> Prop :=
+
+(* S; F; instr* ↪ S'; F'; instr'* *)
+
+Reserved Notation "SFI1 '↪' SFI2" (at level 69).
+Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
 
 (* ----------------------------------------------------------------- *)
 (** *** Lifting ↪s *)
@@ -911,7 +921,24 @@ Inductive step_config : config -> config -> Prop :=
     (S, F, ↑e) ↪ (S', F', ↑e') ->
     (S, F, ↑instrs) ↪ (S', F', ↑instrs') 
 
-where "cfg1 '↪' cfg2" := (step_config cfg1 cfg2).
+where "SFI1 '↪' SFI2" := (step SFI1 SFI2).
+
+Module ConfigStepTest.
+
+  Example e : forall (S S': store) (T T': thread),
+    config_to_tuple (S, T) ↪ config_to_tuple (S', T').
+  Abort. 
+
+  Example e2 : forall (S S': store) (T T': thread),
+    ($(S, T)) ↪ ($(S', T')).
+  Abort. 
+
+  Example e3 : forall (S S': store) (T T': thread),
+    $(S, T) ↪ $(S', T') ->
+    $(S, T) ↪ $(S', T').
+  Abort. 
+
+End ConfigStepTest.
 
 
 (* ================================================================= *)

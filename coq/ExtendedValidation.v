@@ -110,13 +110,11 @@ Reserved Notation "S '⊢mi' Mi '∈' C" (at level 70).
 Inductive valid_moduleinst : store -> moduleinst -> context -> Prop :=
 
   | VMI: forall S C fts fts' tts fas tas,
-
       ⊢ft* fts ok ->
 
-      (* external instances check * 4
-         instantiated as func/table/mem/global *)
+      (* external instances check * 4 instantiated as func/table/mem/global *)
 
-      (* since other field doesn't matter... *)
+      (* since other field of [C] doesn't matter... *)
       C.(C_types) = fts  ->
       C.(C_funcs) = fts' ->
       C.(C_tables) = tts ->
@@ -136,7 +134,7 @@ Reserved Notation "S '⊢fi' fi '∈' ft" (at level 70).
 Inductive valid_funcinst : store -> funcinst -> functype -> Prop :=
 
   | VFI: forall S C ft mi f,
-      ⊢ft ft ok ->
+        ⊢ft ft ok ->
       S ⊢mi mi ∈ C ->
       C ⊢f f ∈ ft ->
       S ⊢fi {| FI_type__wasm := ft; FI_module := mi; FI_code := f |} ∈ ft
@@ -169,18 +167,18 @@ Hint Constructors valid_funcinsts.
 Reserved Notation "S '⊢ti' ti '∈' tt" (at level 70).
 Inductive valid_tableinst : store -> tableinst -> tabletype -> Prop :=
 
-  | VTI: forall S ofas n opt_m, 
+  | VTI: forall S (fes : list (option funcaddr)) n m__opt, 
 
-      length ofas = n ->
+      length fes = n ->
 
       (* valid external? fa n times *)
 
-      ⊢tt ({| L_min := n; L_max := opt_m |}, funcref) ok ->
+      ⊢tt ({| L_min := n; L_max := m__opt |}, funcref) ok ->
 
       S ⊢ti {|
-          TI_elem := ofas ;
-          TI_max := opt_m
-        |} ∈ ({| L_min := n; L_max := opt_m |}, funcref)
+          TI_elem := fes;
+          TI_max  := m__opt;
+        |} ∈ ({| L_min := n; L_max := m__opt |}, funcref)
 
 where "S '⊢ti' ti '∈' tt"  := (valid_tableinst S ti tt).
 Hint Constructors valid_tableinst.
@@ -222,12 +220,37 @@ where "'⊢S' S 'ok' " := (valid_store S).
 Hint Constructors valid_store.
 
 
+
 (* ================================================================= *)
 (** ** Configuration Validity *)
 
-(** Currently we assume it's single thread,
-    we will extend it to multi-thread later on.
- *)
+(** Mutualy Recursive Definition - Pre-defined Notation  *)
+
+Reserved Notation "S '⊢A' F '∈' C " (at level 70).
+Reserved Notation "S_ret '⊢T' T '∈' ret " (at level 70).
+Reserved Notation "'⊢c' cfg '∈' rt " (at level 70).
+Reserved Notation "S_C '⊢a' ainstr '∈' ft " (at level 70).
+Reserved Notation "S_C '⊢a*' ainstrs '∈' ft" (at level 70).
+
+(* ----------------------------------------------------------------- *)
+(** *** Configuration *)
+
+Inductive valid_config : config -> resulttype -> Prop :=
+
+  | VC: forall S T rt,
+      ⊢S S ok ->
+      (S, None) ⊢T T ∈ rt ->
+      ⊢c (S, T) ∈ rt
+
+(* ----------------------------------------------------------------- *)
+(** *** Threads *)
+
+with valid_thread : (store * option resulttype) -> thread -> resulttype -> Prop :=
+
+  | VT: forall S F C (rt__opt : option resulttype) rt instrs, 
+      S ⊢A F ∈ C ->
+      (S, C with_return = rt__opt) ⊢a* instrs ∈ [] --> rt ->
+      (S, rt__opt) ⊢T (F, instrs) ∈ rt
 
 (* ----------------------------------------------------------------- *)
 (** *** Frames *)
@@ -235,15 +258,14 @@ Hint Constructors valid_store.
     we use [A]ctivation for Frame (same as spec Latex)
  *)
 
-Reserved Notation "S '⊢A' F '∈' C " (at level 70).
-Inductive valid_frame : store -> frame -> context -> Prop :=
+with valid_frame : store -> frame -> context -> Prop :=
 
   | VA: forall S C vals mi ts,
       S ⊢mi mi ∈ C ->
       ⊢v* vals ∈ ts ->
       S ⊢A {| A_locals := vals; A_module := mi |} ∈ (C with_locals = ts)
 
-(** The spec prepend a [ts]:
+(** The spec simply prepend a [ts]:
 
       S ⊢f {| A_locals := vals; A_module := mi |} ∈ (C,locals ts)
 
@@ -251,38 +273,10 @@ Inductive valid_frame : store -> frame -> context -> Prop :=
     we are assuming the [C.locals = ϵ] because of no nested fun.
   *)
 
-where "S '⊢A' F '∈' C " := (valid_frame S F C).
-Hint Constructors valid_frame.
-
-
-(* ----------------------------------------------------------------- *)
-(** *** Configuration *)
-
-Reserved Notation "'⊢c' cfg '∈' rt " (at level 70).
-Inductive valid_config : config -> resulttype -> Prop :=
-
-  | VC: forall S F C instrs rt,
-      ⊢S S ok ->
-      S ⊢A F ∈ C ->
-
-      (* TODO: valid thread
-         there might be a bug in the spec when
-         coerce resulttype? to [t?] in the multi-value proposal.
-       *)
-
-      ⊢c (S, F, instrs) ∈ rt
-
-where "'⊢c' cfg '∈' rt " := (valid_config cfg rt).
-Hint Constructors valid_config.
-
-
 (* ================================================================= *)
 (** ** Administrative Instructions *)
 
-Reserved Notation "SC '⊢a' ainstr '∈' ft " (at level 70).
-Reserved Notation "SC '⊢a*' ainstrs '∈' ft" (at level 70).
-
-Inductive valid_admin_instr : store * context -> admin_instr -> functype -> Prop :=
+with valid_admin_instr : (store * context) -> admin_instr -> functype -> Prop :=
 
   | VAI_instr : forall S C (instr: instr) ft,
       C ⊢ instr ∈ ft ->
@@ -292,23 +286,25 @@ Inductive valid_admin_instr : store * context -> admin_instr -> functype -> Prop
       (S,C) ⊢a Trap ∈ ts1 --> ts2
 
   | VAI_invoke : forall S C fa ts1 ts2,
-      (* External check (assume internal always success?) *)
+      (* TODO: external check
+         (assume internal always success?) *)
       (S,C) ⊢a Invoke fa ∈ ts1 --> ts2
 
   (* | VAI_init_elem *)
   (* | VAI_init_data *)
 
   | VAI_label : forall S C n instrs0 instrs ts1 ts2,
+      (* https://github.com/WebAssembly/multi-value/pull/35 *)
       length ts1 = n ->
-      (* TODO: track resulttype coerce bug here in spec *)
       (S,C) ⊢a* ↑instrs0 ∈ ts1 --> ts2 ->
       (S,(C,labels ts1)) ⊢a* instrs ∈ [] --> ts2 ->
       (S,C) ⊢a Label n instrs0 instrs ∈ [] --> ts2
 
   | VAI_frame : forall S C instrs ts n F,
       length ts = n ->
-      (* TODO: valida thread *)
+      (S, Some ts) ⊢T (F, instrs) ∈ ts ->
       (S,C) ⊢a Frame n F instrs ∈ [] --> ts
+
 
 with valid_admin_instrs : store * context -> list admin_instr -> functype -> Prop :=
 
@@ -316,17 +312,24 @@ with valid_admin_instrs : store * context -> list admin_instr -> functype -> Pro
       C ⊢* instrs ∈ ft ->
       (S,C) ⊢a* ↑instrs ∈ ft
 
-where "SC '⊢a' ainstr '∈' ft " := (valid_admin_instr SC ainstr ft)
-  and "SC '⊢a*' ainstrs '∈' ft" := (valid_admin_instrs SC ainstrs ft).
+
+where "S_C '⊢a' ainstr '∈' ft " := (valid_admin_instr S_C ainstr ft)
+  and "S_C '⊢a*' ainstrs '∈' ft" := (valid_admin_instrs S_C ainstrs ft)
+  and "S '⊢A' F '∈' C " := (valid_frame S F C)
+  and "S_ret '⊢T' T '∈' ret " := (valid_thread S_ret T ret)
+  and "'⊢c' cfg '∈' rt " := (valid_config cfg rt).
+
 
 Hint Constructors valid_admin_instr.
 Hint Constructors valid_admin_instrs.
+Hint Constructors valid_frame.
+Hint Constructors valid_thread.
+Hint Constructors valid_config.
+
 
 
 (* ================================================================= *)
 (** ** Store Extension (Weakening) *)
-
-(** S ⪯ S' *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Function Instance *)
