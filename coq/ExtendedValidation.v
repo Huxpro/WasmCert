@@ -14,6 +14,72 @@
 From Wasm Require Import Validation.
 From Wasm Require Import Execution.
 
+  
+(**************************************************************)
+(** ** Implicit Types - Source of Truth *)
+(** https://coq.inria.fr/refman/language/gallina-extensions.html#implicit-types-of-variables
+
+    - help with strictly check our naming convention.
+    - it works up to prime (b') and number postfix (val1).
+    - can be explicitly override when needed.
+    - it's not shared so have to be copied.
+*)
+
+(* Primary *)
+Implicit Type b : bool.
+Implicit Type n m : nat.
+
+(* Value *)
+Implicit Type val : val.
+Implicit Type vals : list val.
+
+(* Structure *)
+Implicit Type M: module.
+Implicit Type l : labelidx.
+
+Implicit Type instr : instr.
+Implicit Type instrs : list instr.
+Implicit Type f func : func.
+Implicit Type fs funcs : list func.
+Implicit Type tab table: table.
+Implicit Type tabs tables: list table.
+
+(* Type *)
+Implicit Type t : valtype.
+Implicit Type ts : list valtype.
+Implicit Type rt : resulttype.
+Implicit Type bt : blocktype.
+Implicit Type ft functype: functype.
+Implicit Type fts functypes: list functype.
+Implicit Type tt tabletype: tabletype.
+Implicit Type tts tabletypes: list tabletype.
+
+(* Validation *)
+Implicit Type C : context.
+
+(* Execution *)
+Implicit Type cfg : config.
+Implicit Type S : store.
+Implicit Type F : frame.
+Implicit Type T : thread.
+Implicit Type E : eval_context.
+
+Implicit Type ainstr : admin_instr.
+Implicit Type ainstrs : list admin_instr.
+
+Implicit Type fa: funcaddr.
+Implicit Type fas : list funcaddr.
+Implicit Type ta: tableaddr.
+Implicit Type tas : list tableaddr.
+
+Implicit Type fi funcinst: funcinst.
+Implicit Type fis funcinsts: list funcinst.
+Implicit Type ti tableinst: tableinst.
+Implicit Type tis tableinsts: list tableinst.
+
+Implicit Type Mi mi moduleinst: moduleinst.
+
+
 (* ================================================================= *)
 (** ** Values and Results *)
 
@@ -82,14 +148,13 @@ Example v1 :=
 
 Compute v1.(H).
 
-(* Problem on getting c to compare with I32.zero *)
-Fail Definition get_c (i: value) : val :=
-  match i.(H) with
-    | Val c => c
-  end.
+(* pattern match as dependent pair will give you this information *)
 
+Fail Definition get_c (i: value) : val :=
+  match (i.(v), i.(H)) with
+    | (Const c, Val _) => c
+  end.
 *)
-  
 
 (* ================================================================= *)
 (** ** Store Validity *)
@@ -207,6 +272,7 @@ Inductive valid_store : store -> Prop :=
 
   | VS: forall S funcinsts tableinsts functypes tabletypes,
 
+      (* why not just ok? *)
       S ⊢fi* funcinsts ∈ functypes ->
       S ⊢ti* tableinsts ∈ tabletypes ->
 
@@ -247,10 +313,10 @@ Inductive valid_config : config -> resulttype -> Prop :=
 
 with valid_thread : (store * option resulttype) -> thread -> resulttype -> Prop :=
 
-  | VT: forall S F C (rt__opt : option resulttype) rt instrs, 
+  | VT: forall S F C (rt__opt : option resulttype) rt ainstrs, 
       S ⊢A F ∈ C ->
-      (S, C with_return = rt__opt) ⊢a* instrs ∈ [] --> rt ->
-      (S, rt__opt) ⊢T (F, instrs) ∈ rt
+      (S, C with_return = rt__opt) ⊢a* ainstrs ∈ [] --> rt ->
+      (S, rt__opt) ⊢T (F, ainstrs) ∈ rt
 
 (* ----------------------------------------------------------------- *)
 (** *** Frames *)
@@ -293,17 +359,17 @@ with valid_admin_instr : (store * context) -> admin_instr -> functype -> Prop :=
   (* | VAI_init_elem *)
   (* | VAI_init_data *)
 
-  | VAI_label : forall S C n instrs0 instrs ts1 ts2,
+  | VAI_label : forall S C n instrs0 ainstrs ts1 ts2,
       (* https://github.com/WebAssembly/multi-value/pull/35 *)
       length ts1 = n ->
       (S,C) ⊢a* ↑instrs0 ∈ ts1 --> ts2 ->
-      (S,(C,labels ts1)) ⊢a* instrs ∈ [] --> ts2 ->
-      (S,C) ⊢a Label n instrs0 instrs ∈ [] --> ts2
+      (S,(C,labels ts1)) ⊢a* ainstrs ∈ [] --> ts2 ->
+      (S,C) ⊢a Label n instrs0 ainstrs ∈ [] --> ts2
 
-  | VAI_frame : forall S C instrs ts n F,
+  | VAI_frame : forall S C ainstrs ts n F,
       length ts = n ->
-      (S, Some ts) ⊢T (F, instrs) ∈ ts ->
-      (S,C) ⊢a Frame n F instrs ∈ [] --> ts
+      (S, Some ts) ⊢T (F, ainstrs) ∈ ts ->
+      (S,C) ⊢a Frame n F ainstrs ∈ [] --> ts
 
 
 with valid_admin_instrs : store * context -> list admin_instr -> functype -> Prop :=

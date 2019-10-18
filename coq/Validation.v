@@ -213,6 +213,41 @@ Module ContextTests.
 End ContextTests.
 
 
+(**************************************************************)
+(** ** Implicit Types - subset of ExtendedTyping *)
+
+(* Primary *)
+Implicit Type b : bool.
+
+(* Value *)
+Implicit Type val : val.
+Implicit Type vals : list val.
+
+(* Structure *)
+Implicit Type M: module.
+Implicit Type l : labelidx.
+
+Implicit Type instr : instr.
+Implicit Type instrs : list instr.
+Implicit Type f func : func.
+Implicit Type fs funcs : list func.
+Implicit Type tab table: table.
+Implicit Type tabs tables: list table.
+
+(* Type *)
+Implicit Type t : valtype.
+Implicit Type ts : list valtype.
+Implicit Type rt : resulttype.
+Implicit Type bt : blocktype.
+Implicit Type ft functype: functype.
+Implicit Type fts functypes: list functype.
+Implicit Type tt tabletype: tabletype.
+Implicit Type tts tabletypes: list tabletype.
+
+(* Validation *)
+Implicit Type C : context.
+
+
 
 (* ================================================================= *)
 (** ** Types *)
@@ -225,6 +260,7 @@ Reserved Notation "'⊢l' l '∈' k" (at level 70).
 Inductive valid_limit : limits -> I32.t -> Prop :=
 
   (* No max limits *)
+  (* should it be [I32. <=] or Coq [<=] ? *)
 
   | VL__none: forall n k,
       I32.le_u n k = true ->
@@ -321,6 +357,7 @@ where "'⊢tt' tt 'ok' " := (valid_tabletype tt).
 (** *** External Types *)
 
 
+
 (* ================================================================= *)
 (** ** Instructions *)
 (** https://webassembly.github.io/spec/core/valid/instructions.html *)
@@ -337,7 +374,6 @@ where "'⊢tt' tt 'ok' " := (valid_tabletype tt).
 
 Reserved Notation "C '⊢' instr '∈' ft" (at level 70).
 Reserved Notation "C '⊢*' instrs '∈' ft" (at level 70).
-
 
 Inductive valid_instr : context -> instr -> functype -> Prop :=
 (* ----------------------------------------------------------------- *)
@@ -647,14 +683,14 @@ Hint Constructors valid_table.
    > Let tt∗ be the concatenation of the internal table types tti, in index order.
 *)
 
-Reserved Notation "C '⊢t*' ts ∈ tts" (at level 70).
+Reserved Notation "C '⊢t*' tabs ∈ tts" (at level 70).
 Inductive valid_tables : context -> list table -> list tabletype -> Prop :=
 
-  | VTS: forall C ts tts,
-      Forall2 (fun table tt => C ⊢t table ∈ tt) ts tts ->
-      C ⊢t* ts ∈ tts
+  | VTS: forall C tabs tts,
+      Forall2 (fun table tt => C ⊢t table ∈ tt) tabs tts ->
+      C ⊢t* tabs ∈ tts
 
-where "C '⊢t*' ts '∈' tts" := (valid_tables C ts tts).
+where "C '⊢t*' tabs '∈' tts" := (valid_tables C tabs tts).
 Hint Constructors valid_tables.
 
 

@@ -12,6 +12,7 @@
 From Wasm Require Export Structure.
 From Wasm Require Export Numerics.
 
+
 (* ================================================================= *)
 (** ** Runtime Structure *)
 (** http://webassembly.github.io/spec/core/exec/runtime.html *)
@@ -298,7 +299,6 @@ Inductive admin_instr :=
   | Label (n: nat) (cont: list instr) (code: list admin_instr)
   | Frame (n: nat) (activation: frame) (code: list admin_instr).
 
-
 (** lifting *)
 
 Definition lift_plains (instrs: list instr) : list admin_instr :=
@@ -578,6 +578,62 @@ Module EvalContextTest.
 End EvalContextTest.
 
 
+(**************************************************************)
+(** ** Implicit Types - Copied from ExtendedTyping *)
+
+(* Primary *)
+Implicit Type b : bool.
+Implicit Type n m : nat.
+
+(* Value *)
+Implicit Type val : val.
+Implicit Type vals : list val.
+
+(* Structure *)
+Implicit Type M: module.
+Implicit Type l : labelidx.
+
+Implicit Type instr : instr.
+Implicit Type instrs : list instr.
+Implicit Type f func : func.
+Implicit Type fs funcs : list func.
+Implicit Type tab table: table.
+Implicit Type tabs tables: list table.
+
+(* Type *)
+Implicit Type t : valtype.
+Implicit Type ts : list valtype.
+Implicit Type rt : resulttype.
+Implicit Type bt : blocktype.
+Implicit Type ft functype: functype.
+Implicit Type fts functypes: list functype.
+Implicit Type tt tabletype: tabletype.
+Implicit Type tts tabletypes: list tabletype.
+
+(* Execution *)
+Implicit Type cfg : config.
+Implicit Type S : store.
+Implicit Type F : frame.
+Implicit Type T : thread.
+Implicit Type E : eval_context.
+
+Implicit Type ainstr : admin_instr.
+Implicit Type ainstrs : list admin_instr.
+
+Implicit Type fa: funcaddr.
+Implicit Type fas : list funcaddr.
+Implicit Type ta: tableaddr.
+Implicit Type tas : list tableaddr.
+
+Implicit Type fi funcinst: funcinst.
+Implicit Type fis funcinsts: list funcinst.
+Implicit Type ti tableinst: tableinst.
+Implicit Type tis tableinsts: list tableinst.
+
+Implicit Type Mi mi moduleinst: moduleinst.
+
+
+
 (* ================================================================= *)
 (** ** Instructions *)
 (** https://webassembly.github.io/multi-value/core/exec/instructions.html#instructions *)
@@ -658,18 +714,18 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Parametric Instruction *)
 
-  | SS_drop : forall (val: val),
+  | SS_drop : forall val,
       let val : instr := val in
       ↑[val; Drop] ↪s []
 
   (* A exprimental alternative definition using per item Coercion *)
-  | SS_select1 : forall (val1 val2 : val) c,
+  | SS_select1 : forall val1 val2 c,
       let val1 : instr := val1 in
       let val2 : instr := val2 in
       c <> I32.zero ->
       ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val1]
 
-  | SS_select2 : forall (val1 val2 : val) c,
+  | SS_select2 : forall val1 val2 c,
       let val1 : instr := val1 in
       let val2 : instr := val2 in
       c = I32.zero ->
@@ -749,9 +805,9 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
     - plain instrs might take a non-simple step as well.
  *)
 
-  | SC_simple : forall S F instrs instrs',
-      instrs ↪s instrs' ->
-      (S, F, instrs) ↪ (S, F, instrs')
+  | SC_simple : forall S F ainstrs ainstrs',
+      ainstrs ↪s ainstrs' ->
+      (S, F, ainstrs) ↪ (S, F, ainstrs')
 
 (* ----------------------------------------------------------------- *)
 (** *** Memory Instruction *)
@@ -785,38 +841,38 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
      sufficient number of vals from the well-type premise. 
    *)
                                       
-  | SC_block : forall S F m n ts1 ts2 bt instrs vs,
+  | SC_block : forall S F m n ts1 ts2 bt instrs vals,
       m = length ts1 ->
       n = length ts2 ->
-      length vs = m ->
+      length vals = m ->
       expand F bt = Some (ts1 --> ts2) ->
-      (S, F, vs ++ ↑[Block bt instrs]) ↪ (S, F, [Label n ϵ (vs ++ ↑instrs)])
+      (S, F, ⇈vals ++ ↑[Block bt instrs]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs)])
 
-  | SC_loop : forall S F m n ts1 ts2 bt instrs vs,
+  | SC_loop : forall S F m n ts1 ts2 bt instrs vals,
       m = length ts1 ->
       n = length ts2 ->
-      length vs = m ->
+      length vals = m ->
       expand F bt = Some (ts1 --> ts2) ->
-      (S, F, vs ++ ↑[Loop bt instrs]) ↪ (S, F, [Label n [Loop bt instrs] (vs ++ ↑instrs)])
+      (S, F, ⇈vals ++ ↑[Loop bt instrs]) ↪ (S, F, [Label n [Loop bt instrs] (⇈vals ++ ↑instrs)])
 
   (* The original paper definition (and Isabelle) simply desugar [if] into [block]
      But here we faithfully represent the spec and made the rule explicit. *)
 
-  | SC_if1 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vs,
+  | SC_if1 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
       m = length ts1 ->
       n = length ts2 ->
-      length vs = m ->
+      length vals = m ->
       c <> I32.zero ->
       expand F bt = Some (ts1 --> ts2) ->
-      (S, F, vs ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (vs ++ ↑instrs1)])
+      (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs1)])
 
-  | SC_if2 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vs,
+  | SC_if2 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
       m = length ts1 ->
       n = length ts2 ->
-      length vs = m ->
+      length vals = m ->
       c = I32.zero ->
       expand F bt = Some (ts1 --> ts2) ->
-      (S, F, vs ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (vs ++ ↑instrs2)])
+      (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs2)])
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction - Function Call Related *)
@@ -825,33 +881,56 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
       F.(A_module).(MI_funcaddrs).[x] = Some a ->
       (S, F, ↑[Call x]) ↪ (S, F, [Invoke a])
 
-  | SC_call_indirect : forall S F (i: nat) x a (ta: tableaddr) (tab: tableinst) f ft,
 
-      (* S.tables[F.module.tableaddrs[0]].elem[i] = a *)
+(** **** Call_indirect - dynamically typechecked *)
 
-      F.(A_module).(MI_tableaddrs).[0] = Some ta ->
-      S.(S_tables).[ta] = Some tab ->
-      tab.(TI_elem).[i] = Some (Some a) ->
+  | SC_call_indirect :
+      forall S F (i: nat) x a (ta: tableaddr) (tab: tableinst) (f: funcinst) ft,
 
+(**   S.   tables  [F.   module.     tableaddrs  [0]].    elem  [i] =            a *)
+                    F.(A_module).(MI_tableaddrs).[0] = Some ta ->
+      S.(S_tables).[                              ta] = Some tab ->
+                                                  tab.(TI_elem).[i] = Some (Some a) ->
+
+(**   S.   funcs  [a] =      f *)
       S.(S_funcs).[a] = Some f ->
 
-      (* F.module.types[x] = f.type *)
+(**   F.   module.     types  [x] =           f.    type  *)
+      F.(A_module).(MI_types).[x] = Some ft -> f.(FI_type) = ft -> (* this [FI_type] is polymorphic over wasm and host *)
 
-      F.(A_module).(MI_types).[x] = Some ft ->
-
-      (* this [FI_type] is polymorphic over wasm and host *)
-      f.(FI_type) = ft ->
-
-      (* Coercion [nat_to_i32] happened to [i] here. *)
       (S, F, ↑[Const (i32 (i: I32.t)); Call_indirect x]) ↪ (S, F, [Invoke a])
 
-  | SS_call_indirect__trap : forall S F i x,
-      (S, F, ↑[Const (i32 i); Call_indirect x]) ↪ (S, F, [Trap])
+
+(** **** Call_indirect - dynamically typecheck fail *)
+
+  | SC_call_indirect__trap :
+      forall S F (i: nat) x a ta (tab: tableinst) (f: funcinst) ft__actual ft__expect,
+
+(** the spec simply said "otherwise" but we need to enumerate all the negation cases here *)
+      F.(A_module).(MI_tableaddrs).[0] = Some ta ->  (* due to validation *)
+      S.(S_tables).[ta] = Some tab ->                (* due to validation *)
+
+(** either: [i] is overflow the [tab.elem] length *) 
+        tab.(TI_elem).[i] = None                      
+
+(** or: [tab.elem[i]] is uninitialized *) 
+      /\ tab.(TI_elem).[i] = Some None
+
+(** or: [ft__actual <> ft__expect] runtime type check fail *) 
+      /\ (
+          S.(S_funcs).[a] = Some f ->                     (* due to validation *)
+          F.(A_module).(MI_types).[x] = Some ft__expect ->  (* due to validation *)
+          f.(FI_type) = ft__actual -> 
+          ft__actual <> ft__expect
+        ) ->
+ 
+      (S, F, ↑[Const (i32 (i: I32.t)); Call_indirect x]) ↪ (S, F, [Trap])
 
 (* ----------------------------------------------------------------- *)
 (** *** Function Call *)
 
-  | SC_invoke : forall S F' F vals a n m ts1 ts2 instrs f x ts,
+  | SC_invoke :
+      forall S F' F vals a n m ts1 ts2 instrs (f: funcinst__wasm) x ts,
 
       S.(S_funcs).[a] = Some (FI_wasm f) ->
 
@@ -880,9 +959,9 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
        S; F; E[instr*] ↪ S′; F′; E[instr′*]
 *)
 
-  | SC_E : forall E S S' F F' instrs instrs',
-      (S, F,         instrs) ↪ (S', F',         instrs') ->
-      (S, F, plug__E E instrs) ↪ (S', F', plug__E E instrs')
+  | SC_E : forall E S S' F F' ainstrs ainstrs',
+      (S, F,         ainstrs) ↪ (S', F',         ainstrs') ->
+      (S, F, plug__E E ainstrs) ↪ (S', F', plug__E E ainstrs')
 
 (*
        S;              F'; instr*     ↪ S';             F''; instr′*
@@ -890,9 +969,9 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
        S; F;  frame_n {F'} instr* end ↪ S'; F; frame_n {F''} instr'* end
 *)
 
-  | SC_frame : forall S S' F F' F'' n instrs instrs',
-      (S,             F',instrs ) ↪ (S',             F'',instrs' ) ->
-      (S, F, [Frame n F' instrs]) ↪ (S', F, [Frame n F'' instrs'])
+  | SC_frame : forall S S' F F' F'' n ainstrs ainstrs',
+      (S,             F',ainstrs ) ↪ (S',             F'',ainstrs' ) ->
+      (S, F, [Frame n F' ainstrs]) ↪ (S', F, [Frame n F'' ainstrs'])
 
 (** **** Trap *)
 

@@ -13,3 +13,4 @@ ExtendedValidation.v
 Preservation.v
 Progress.v
 Soundness.v
+Lib/LibTactics.v
