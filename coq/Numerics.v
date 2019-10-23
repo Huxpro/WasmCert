@@ -10,6 +10,7 @@
 
 From Wasm Require Export Values.
 From Wasm Require Export Structure.
+Import OptionMonadNotations.
 
 Module S := Structure.
 

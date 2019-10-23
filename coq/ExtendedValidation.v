@@ -313,9 +313,10 @@ Inductive valid_config : config -> resulttype -> Prop :=
 
 with valid_thread : (store * option resulttype) -> thread -> resulttype -> Prop :=
 
-  | VT: forall S F C (rt__opt : option resulttype) rt ainstrs, 
+  | VT: forall S F C (rt__opt : option resulttype) ainstrs rt, 
       S ⊢A F ∈ C ->
       (S, C with_return = rt__opt) ⊢a* ainstrs ∈ [] --> rt ->
+      (match rt__opt with None => True | Some rt' => rt' = rt end) ->
       (S, rt__opt) ⊢T (F, ainstrs) ∈ rt
 
 (* ----------------------------------------------------------------- *)
@@ -348,28 +349,28 @@ with valid_admin_instr : (store * context) -> admin_instr -> functype -> Prop :=
       C ⊢ instr ∈ ft ->
       (S,C) ⊢a (instr: admin_instr) ∈ ft
 
-  | VAI_trap : forall S C ts1 ts2,
-      (S,C) ⊢a Trap ∈ ts1 --> ts2
+  (* | VAI_trap : forall S C ts1 ts2, *)
+  (*     (S,C) ⊢a Trap ∈ ts1 --> ts2 *)
 
-  | VAI_invoke : forall S C fa ts1 ts2,
-      (* TODO: external check
-         (assume internal always success?) *)
-      (S,C) ⊢a Invoke fa ∈ ts1 --> ts2
+  (* | VAI_invoke : forall S C fa ts1 ts2, *)
+  (*     (* TODO: external check *)
+  (*        (assume internal always success?) *) *)
+  (*     (S,C) ⊢a Invoke fa ∈ ts1 --> ts2 *)
 
   (* | VAI_init_elem *)
   (* | VAI_init_data *)
 
-  | VAI_label : forall S C n instrs0 ainstrs ts1 ts2,
-      (* https://github.com/WebAssembly/multi-value/pull/35 *)
-      length ts1 = n ->
-      (S,C) ⊢a* ↑instrs0 ∈ ts1 --> ts2 ->
-      (S,(C,labels ts1)) ⊢a* ainstrs ∈ [] --> ts2 ->
-      (S,C) ⊢a Label n instrs0 ainstrs ∈ [] --> ts2
+  (* | VAI_label : forall S C n instrs0 ainstrs ts1 ts2, *)
+  (*     (* https://github.com/WebAssembly/multi-value/pull/35 *) *)
+  (*     length ts1 = n -> *)
+  (*     (S,C) ⊢a* ↑instrs0 ∈ ts1 --> ts2 -> *)
+  (*     (S,(C,labels ts1)) ⊢a* ainstrs ∈ [] --> ts2 -> *)
+  (*     (S,C) ⊢a Label n instrs0 ainstrs ∈ [] --> ts2 *)
 
-  | VAI_frame : forall S C ainstrs ts n F,
-      length ts = n ->
-      (S, Some ts) ⊢T (F, ainstrs) ∈ ts ->
-      (S,C) ⊢a Frame n F ainstrs ∈ [] --> ts
+  (* | VAI_frame : forall S C ainstrs ts n F, *)
+  (*     length ts = n -> *)
+  (*     (S, Some ts) ⊢T (F, ainstrs) ∈ ts -> *)
+  (*     (S,C) ⊢a Frame n F ainstrs ∈ [] --> ts *)
 
 
 with valid_admin_instrs : store * context -> list admin_instr -> functype -> Prop :=

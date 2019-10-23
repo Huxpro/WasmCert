@@ -11,6 +11,8 @@
 
 From Wasm Require Export Structure.
 From Wasm Require Export Numerics.
+Import EpsilonNotation.
+Import OptionMonadNotations.
 
 
 (* ================================================================= *)
@@ -685,11 +687,11 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Numeric Instruction *)
 
-(* technically, the [c] here are typed [tc : val] *)
+(* the spec write it as [t.const c] where we replaced as generic [val] *)
 
-  | SS_unop__some : forall op c1 c,
-      eval_unop op c1 = Ok (Some c) ->
-      ↑[Const c1; Unop op] ↪s ↑[Const c]
+  | SS_unop__some : forall op val1 val,
+      eval_unop op val1 = Ok (Some val) ->
+      ↑[Const val1; Unop op] ↪s ↑[Const val]
 
   | SS_unop__none : forall op c1,
       eval_unop op c1 = Ok None ->
@@ -714,22 +716,22 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Parametric Instruction *)
 
-  | SS_drop : forall val,
-      let val : instr := val in
-      ↑[val; Drop] ↪s []
+  (* | SS_drop : forall val, *)
+  (*     let val : instr := val in *)
+  (*     ↑[val; Drop] ↪s [] *)
 
   (* A exprimental alternative definition using per item Coercion *)
-  | SS_select1 : forall val1 val2 c,
-      let val1 : instr := val1 in
-      let val2 : instr := val2 in
-      c <> I32.zero ->
-      ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val1]
+  (* | SS_select1 : forall val1 val2 c, *)
+  (*     let val1 : instr := val1 in *)
+  (*     let val2 : instr := val2 in *)
+  (*     c <> I32.zero -> *)
+  (*     ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val1] *)
 
-  | SS_select2 : forall val1 val2 c,
-      let val1 : instr := val1 in
-      let val2 : instr := val2 in
-      c = I32.zero ->
-      ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val2]
+  (* | SS_select2 : forall val1 val2 c, *)
+  (*     let val1 : instr := val1 in *)
+  (*     let val2 : instr := val2 in *)
+  (*     c = I32.zero -> *)
+  (*     ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val2] *)
 
   (* | SS_select1 : forall c1 c2 c, *)
   (*     c <> I32.zero -> *)
@@ -742,53 +744,53 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction *)
 
-  | SS_nop : 
-      ↑[Nop] ↪s []
+  (* | SS_nop :  *)
+  (*     ↑[Nop] ↪s [] *)
 
-  | SS_unreachable : 
-      ↑[Unreachable] ↪s [Trap]
+  (* | SS_unreachable :  *)
+  (*     ↑[Unreachable] ↪s [Trap] *)
 
-  | SS_br : forall n instrs l (Bl: block_context l) vals,
-      length vals = n ->
-      [Label n instrs (plug__B Bl (⇈vals ++ ↑[Br l]))] ↪s ⇈vals ++ ↑instrs
+  (* | SS_br : forall n instrs l (Bl: block_context l) vals, *)
+  (*     length vals = n -> *)
+  (*     [Label n instrs (plug__B Bl (⇈vals ++ ↑[Br l]))] ↪s ⇈vals ++ ↑instrs *)
 
-  | SS_br_if1 : forall c l,
-      c <> I32.zero ->
-      ↑[Const (i32 c); Br_if l]  ↪s ↑[Br l]
+  (* | SS_br_if1 : forall c l, *)
+  (*     c <> I32.zero -> *)
+  (*     ↑[Const (i32 c); Br_if l]  ↪s ↑[Br l] *)
 
-  | SS_br_if2 : forall c l,
-      c = I32.zero ->
-      ↑[Const (i32 c); Br_if l]  ↪s []
+  (* | SS_br_if2 : forall c l, *)
+  (*     c = I32.zero -> *)
+  (*     ↑[Const (i32 c); Br_if l]  ↪s [] *)
 
-  | SS_br_table__i : forall ls l__N l__i (i: nat),
-      ls.[i] = Some l__i ->
-      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__i]
+  (* | SS_br_table__i : forall ls l__N l__i (i: nat), *)
+  (*     ls.[i] = Some l__i -> *)
+  (*     ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__i] *)
 
-  | SS_br_table__N : forall ls l__N (i: nat),
-      length ls <= i ->
-      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__N]
+  (* | SS_br_table__N : forall ls l__N (i: nat), *)
+  (*     length ls <= i -> *)
+  (*     ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__N] *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction - Function Call Related *)
 
-  | SS_return : forall n F k (Bk : block_context k) vals,
-      length vals = n ->
-      [Frame n F (plug__B Bk (⇈vals ++ ↑[Return]))] ↪s ⇈vals
+  (* | SS_return : forall n F k (Bk : block_context k) vals, *)
+  (*     length vals = n -> *)
+  (*     [Frame n F (plug__B Bk (⇈vals ++ ↑[Return]))] ↪s ⇈vals *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Block *)
 
-  | SS_block__exit : forall n m vals instrs,
-      length vals = m ->
-      [Label n instrs (⇈vals)]  ↪s ⇈vals
+  (* | SS_block__exit : forall n m vals instrs, *)
+  (*     length vals = m -> *)
+  (*     [Label n instrs (⇈vals)]  ↪s ⇈vals *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Function Calls *)
 (** **** Returning from a function *)
 
-  | SS_frame__exit : forall n F vals,
-      length vals = n ->
-      [Frame n F (⇈vals)]  ↪s ⇈vals
+  (* | SS_frame__exit : forall n F vals, *)
+  (*     length vals = n -> *)
+  (*     [Frame n F (⇈vals)]  ↪s ⇈vals *)
 
 where "instrs1 '↪s' instrs2"  := (step_simple instrs1 instrs2).
 
@@ -812,16 +814,16 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Memory Instruction *)
 
-  | SC_local_get : forall S F x v, 
-      F.(A_locals).[x] = Some v ->
-      (S, F, ↑[Local_get x]) ↪ (S, F, ↑[Const v])
+  (* | SC_local_get : forall S F x v,  *)
+  (*     F.(A_locals).[x] = Some v -> *)
+  (*     (S, F, ↑[Local_get x]) ↪ (S, F, ↑[Const v]) *)
 
-  | SC_local_set : forall S F F' x v, 
-      Some F' = F with_locals[x] = v ->
-      (S, F, ↑[Const v; Local_set x]) ↪ (S, F', [])
+  (* | SC_local_set : forall S F F' x v,  *)
+  (*     Some F' = F with_locals[x] = v -> *)
+  (*     (S, F, ↑[Const v; Local_set x]) ↪ (S, F', []) *)
 
-  | SC_local_tee : forall S F x v, 
-      (S, F, ↑[Const v; Local_tee x]) ↪ (S, F, ↑[Const v; Const v; Local_set x])
+  (* | SC_local_tee : forall S F x v,  *)
+  (*     (S, F, ↑[Const v; Local_tee x]) ↪ (S, F, ↑[Const v; Const v; Local_set x]) *)
 
   (* | SC_global_get *)
   (* | SC_global_set *)
@@ -841,109 +843,109 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
      sufficient number of vals from the well-type premise. 
    *)
                                       
-  | SC_block : forall S F m n ts1 ts2 bt instrs vals,
-      m = length ts1 ->
-      n = length ts2 ->
-      length vals = m ->
-      expand F bt = Some (ts1 --> ts2) ->
-      (S, F, ⇈vals ++ ↑[Block bt instrs]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs)])
+  (* | SC_block : forall S F m n ts1 ts2 bt instrs vals, *)
+  (*     m = length ts1 -> *)
+  (*     n = length ts2 -> *)
+  (*     length vals = m -> *)
+  (*     expand F bt = Some (ts1 --> ts2) -> *)
+  (*     (S, F, ⇈vals ++ ↑[Block bt instrs]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs)]) *)
 
-  | SC_loop : forall S F m n ts1 ts2 bt instrs vals,
-      m = length ts1 ->
-      n = length ts2 ->
-      length vals = m ->
-      expand F bt = Some (ts1 --> ts2) ->
-      (S, F, ⇈vals ++ ↑[Loop bt instrs]) ↪ (S, F, [Label n [Loop bt instrs] (⇈vals ++ ↑instrs)])
+  (* | SC_loop : forall S F m n ts1 ts2 bt instrs vals, *)
+  (*     m = length ts1 -> *)
+  (*     n = length ts2 -> *)
+  (*     length vals = m -> *)
+  (*     expand F bt = Some (ts1 --> ts2) -> *)
+  (*     (S, F, ⇈vals ++ ↑[Loop bt instrs]) ↪ (S, F, [Label n [Loop bt instrs] (⇈vals ++ ↑instrs)]) *)
 
   (* The original paper definition (and Isabelle) simply desugar [if] into [block]
      But here we faithfully represent the spec and made the rule explicit. *)
 
-  | SC_if1 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
-      m = length ts1 ->
-      n = length ts2 ->
-      length vals = m ->
-      c <> I32.zero ->
-      expand F bt = Some (ts1 --> ts2) ->
-      (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs1)])
+  (* | SC_if1 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals, *)
+  (*     m = length ts1 -> *)
+  (*     n = length ts2 -> *)
+  (*     length vals = m -> *)
+  (*     c <> I32.zero -> *)
+  (*     expand F bt = Some (ts1 --> ts2) -> *)
+  (*     (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs1)]) *)
 
-  | SC_if2 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
-      m = length ts1 ->
-      n = length ts2 ->
-      length vals = m ->
-      c = I32.zero ->
-      expand F bt = Some (ts1 --> ts2) ->
-      (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs2)])
+  (* | SC_if2 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals, *)
+  (*     m = length ts1 -> *)
+  (*     n = length ts2 -> *)
+  (*     length vals = m -> *)
+  (*     c = I32.zero -> *)
+  (*     expand F bt = Some (ts1 --> ts2) -> *)
+  (*     (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs2)]) *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction - Function Call Related *)
 
-  | SC_call : forall S F x a,
-      F.(A_module).(MI_funcaddrs).[x] = Some a ->
-      (S, F, ↑[Call x]) ↪ (S, F, [Invoke a])
+  (* | SC_call : forall S F x a, *)
+  (*     F.(A_module).(MI_funcaddrs).[x] = Some a -> *)
+  (*     (S, F, ↑[Call x]) ↪ (S, F, [Invoke a]) *)
 
 
 (** **** Call_indirect - dynamically typechecked *)
 
-  | SC_call_indirect :
-      forall S F (i: nat) x a (ta: tableaddr) (tab: tableinst) (f: funcinst) ft,
+(*   | SC_call_indirect : *)
+(*       forall S F (i: nat) x a (ta: tableaddr) (tab: tableinst) (f: funcinst) ft, *)
 
-(**   S.   tables  [F.   module.     tableaddrs  [0]].    elem  [i] =            a *)
-                    F.(A_module).(MI_tableaddrs).[0] = Some ta ->
-      S.(S_tables).[                              ta] = Some tab ->
-                                                  tab.(TI_elem).[i] = Some (Some a) ->
+(* (**   S.   tables  [F.   module.     tableaddrs  [0]].    elem  [i] =            a *) *)
+(*                     F.(A_module).(MI_tableaddrs).[0] = Some ta -> *)
+(*       S.(S_tables).[                              ta] = Some tab -> *)
+(*                                                   tab.(TI_elem).[i] = Some (Some a) -> *)
 
-(**   S.   funcs  [a] =      f *)
-      S.(S_funcs).[a] = Some f ->
+(* (**   S.   funcs  [a] =      f *) *)
+(*       S.(S_funcs).[a] = Some f -> *)
 
-(**   F.   module.     types  [x] =           f.    type  *)
-      F.(A_module).(MI_types).[x] = Some ft -> f.(FI_type) = ft -> (* this [FI_type] is polymorphic over wasm and host *)
+(* (**   F.   module.     types  [x] =           f.    type  *) *)
+(*       F.(A_module).(MI_types).[x] = Some ft -> f.(FI_type) = ft -> (* this [FI_type] is polymorphic over wasm and host *) *)
 
-      (S, F, ↑[Const (i32 (i: I32.t)); Call_indirect x]) ↪ (S, F, [Invoke a])
+(*       (S, F, ↑[Const (i32 (i: I32.t)); Call_indirect x]) ↪ (S, F, [Invoke a]) *)
 
 
 (** **** Call_indirect - dynamically typecheck fail *)
 
-  | SC_call_indirect__trap :
-      forall S F (i: nat) x a ta (tab: tableinst) (f: funcinst) ft__actual ft__expect,
+(*   | SC_call_indirect__trap : *)
+(*       forall S F (i: nat) x a ta (tab: tableinst) (f: funcinst) ft__actual ft__expect, *)
 
-(** the spec simply said "otherwise" but we need to enumerate all the negation cases here *)
-      F.(A_module).(MI_tableaddrs).[0] = Some ta ->  (* due to validation *)
-      S.(S_tables).[ta] = Some tab ->                (* due to validation *)
+(* (** the spec simply said "otherwise" but we need to enumerate all the negation cases here *) *)
+(*       F.(A_module).(MI_tableaddrs).[0] = Some ta ->  (* due to validation *) *)
+(*       S.(S_tables).[ta] = Some tab ->                (* due to validation *) *)
 
-(** either: [i] is overflow the [tab.elem] length *) 
-        tab.(TI_elem).[i] = None                      
+(* (** either: [i] is overflow the [tab.elem] length *)  *)
+(*         tab.(TI_elem).[i] = None                       *)
 
-(** or: [tab.elem[i]] is uninitialized *) 
-      /\ tab.(TI_elem).[i] = Some None
+(* (** or: [tab.elem[i]] is uninitialized *)  *)
+(*       /\ tab.(TI_elem).[i] = Some None *)
 
-(** or: [ft__actual <> ft__expect] runtime type check fail *) 
-      /\ (
-          S.(S_funcs).[a] = Some f ->                     (* due to validation *)
-          F.(A_module).(MI_types).[x] = Some ft__expect ->  (* due to validation *)
-          f.(FI_type) = ft__actual -> 
-          ft__actual <> ft__expect
-        ) ->
+(* (** or: [ft__actual <> ft__expect] runtime type check fail *)  *)
+(*       /\ ( *)
+(*           S.(S_funcs).[a] = Some f ->                     (* due to validation *) *)
+(*           F.(A_module).(MI_types).[x] = Some ft__expect ->  (* due to validation *) *)
+(*           f.(FI_type) = ft__actual ->  *)
+(*           ft__actual <> ft__expect *)
+(*         ) -> *)
  
-      (S, F, ↑[Const (i32 (i: I32.t)); Call_indirect x]) ↪ (S, F, [Trap])
+(*       (S, F, ↑[Const (i32 (i: I32.t)); Call_indirect x]) ↪ (S, F, [Trap]) *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Function Call *)
 
-  | SC_invoke :
-      forall S F' F vals a n m ts1 ts2 instrs (f: funcinst__wasm) x ts,
+(*   | SC_invoke : *)
+(*       forall S F' F vals a n m ts1 ts2 instrs (f: funcinst__wasm) x ts, *)
 
-      S.(S_funcs).[a] = Some (FI_wasm f) ->
+(*       S.(S_funcs).[a] = Some (FI_wasm f) -> *)
 
-      length ts1 = n ->
-      length ts2 = m ->
-      f.(FI_type) = ts1 --> ts2 ->
+(*       length ts1 = n -> *)
+(*       length ts2 = m -> *)
+(*       f.(FI_type) = ts1 --> ts2 -> *)
 
-      f.(FI_code) = {| F_type := x; F_locals := ts; F_body := instrs |} ->
+(*       f.(FI_code) = {| F_type := x; F_locals := ts; F_body := instrs |} -> *)
 
-      F = {| A_module := f.(FI_module); A_locals := vals ++ (zeros ts) |} ->
+(*       F = {| A_module := f.(FI_module); A_locals := vals ++ (zeros ts) |} -> *)
 
-(*     S;      val^n   (invoke a)  ↪  S;      frame_m{F} label_m {}   instr* end end *)
-      (S, F', ⇈vals ++ [Invoke a]) ↪ (S, F', [Frame m F [Label m [] (↑instrs)]])
+(* (*     S;      val^n   (invoke a)  ↪  S;      frame_m{F} label_m {}   instr* end end *) *)
+(*       (S, F', ⇈vals ++ [Invoke a]) ↪ (S, F', [Frame m F [Label m [] (↑instrs)]]) *)
 
 (** **** Host Functions *)
 
@@ -969,17 +971,17 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
        S; F;  frame_n {F'} instr* end ↪ S'; F; frame_n {F''} instr'* end
 *)
 
-  | SC_frame : forall S S' F F' F'' n ainstrs ainstrs',
-      (S,             F',ainstrs ) ↪ (S',             F'',ainstrs' ) ->
-      (S, F, [Frame n F' ainstrs]) ↪ (S', F, [Frame n F'' ainstrs'])
+  (* | SC_frame : forall S S' F F' F'' n ainstrs ainstrs', *)
+  (*     (S,             F',ainstrs ) ↪ (S',             F'',ainstrs' ) -> *)
+  (*     (S, F, [Frame n F' ainstrs]) ↪ (S', F, [Frame n F'' ainstrs']) *)
 
 (** **** Trap *)
 
-  | SC_trap__E : forall E S F, 
-      (S, F, plug__E E [Trap]) ↪ (S, F, [Trap])
+  (* | SC_trap__E : forall E S F,  *)
+  (*     (S, F, plug__E E [Trap]) ↪ (S, F, [Trap]) *)
 
-  | SC_trap__frame : forall S F n F', 
-      (S, F, [Frame n F' [Trap]]) ↪ (S, F, [Trap])
+  (* | SC_trap__frame : forall S F n F',  *)
+  (*     (S, F, [Frame n F' [Trap]]) ↪ (S, F, [Trap]) *)
                              
 (* ----------------------------------------------------------------- *)
 (** *** Expressions *)
@@ -994,11 +996,11 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
    Do we really need this?
 *)
 
-  | SC_expr : forall S S' F F' (e: expr) (e': expr) instrs instrs', 
-    e  = instrs ->
-    e' = instrs' ->
-    (S, F, ↑e) ↪ (S', F', ↑e') ->
-    (S, F, ↑instrs) ↪ (S', F', ↑instrs') 
+  (* | SC_expr : forall S S' F F' (e: expr) (e': expr) instrs instrs',  *)
+  (*   e  = instrs -> *)
+  (*   e' = instrs' -> *)
+  (*   (S, F, ↑e) ↪ (S', F', ↑e') -> *)
+  (*   (S, F, ↑instrs) ↪ (S', F', ↑instrs')  *)
 
 where "SFI1 '↪' SFI2" := (step SFI1 SFI2).
 

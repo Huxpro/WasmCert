@@ -17,10 +17,19 @@ Export ListNotations.
 
 (* ================================================================= *)
 (** ** Notations *)
+(** whether or not we want a Notation to be default exported depends
+    on do we want it to be displayed during interactive proofs.
+ *)
 
 (* ----------------------------------------------------------------- *)
 (** *** Epsilon *)
-Notation " 'ϵ' " := ([]).
+
+Module EpsilonNotation.
+
+  Notation " 'ϵ' " := ([]).
+
+End EpsilonNotation.
+
 
 (* ----------------------------------------------------------------- *)
 (** *** Indexing *)
@@ -57,7 +66,7 @@ Module IndexingNotations.
   End Test.
 
 End IndexingNotations.
-Export IndexingNotations.
+Export IndexingNotations.  (* default export *)
 
 
 
@@ -65,7 +74,7 @@ Export IndexingNotations.
 (** ** Monads *)
 
 (* ----------------------------------------------------------------- *)
-(** *** Monadaic/Fmap option *)
+(** *** Monadaic/Fmap Option *)
 
 Module OptionMonadNotations.
 
@@ -118,4 +127,3 @@ Module OptionMonadNotations.
   End Test.
 
 End OptionMonadNotations.
-Export OptionMonadNotations.
