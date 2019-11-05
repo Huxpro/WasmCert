@@ -64,7 +64,7 @@ Definition replace_locals(C: context) (xs: list valtype) :=
   |}.
 Notation "C 'with_locals' = xs" :=
   (replace_locals C xs)
-  (at level 69, left associativity) : wasm_scope.
+  (at level 68, left associativity) : wasm_scope.
 
 Definition replace_labels (C: context) (xs: list resulttype) :=
   {|
@@ -77,7 +77,7 @@ Definition replace_labels (C: context) (xs: list resulttype) :=
   |}.
 Notation "C 'with_labels' = x" :=
   (replace_labels C x)
-  (at level 69, left associativity) : wasm_scope.
+  (at level 68, left associativity) : wasm_scope.
 
 Definition replace_return (C: context) (x: option resulttype) :=
   {|
@@ -90,7 +90,7 @@ Definition replace_return (C: context) (x: option resulttype) :=
   |}.
 Notation "C 'with_return' = x" :=
   (replace_return C x)
-  (at level 69, left associativity) : wasm_scope.
+  (at level 68, left associativity) : wasm_scope.
 
 
 (** functional update - cons on fields *)
@@ -106,7 +106,7 @@ Definition cons_labels (C: context) (x: resulttype) :=
   |}.
 Notation "C ',labels' x" :=
   (cons_labels C x)
-  (at level 68, left associativity) : wasm_scope.
+  (at level 67, left associativity) : wasm_scope.
 
 Definition cons_locals (C: context) (x: valtype) :=
   {|
@@ -119,7 +119,7 @@ Definition cons_locals (C: context) (x: valtype) :=
   |}.
 Notation "C ',locals' x" :=
   (cons_locals C x)
-  (at level 68, left associativity) : wasm_scope.
+  (at level 67, left associativity) : wasm_scope.
 
 
 (** functional update - prepend on fields *)
@@ -135,7 +135,7 @@ Definition prepend_locals (C: context) (xs: list valtype) :=
   |}.
 Notation "C ',locals*' xs" :=  
   (prepend_locals C xs)
-  (at level 68, left associativity) : wasm_scope.
+  (at level 67, left associativity) : wasm_scope.
 
 
 (** Tests *)
@@ -528,7 +528,11 @@ Fixpoint check_instr
 (** *** Expressions *)
 (** http://webassembly.github.io/spec/core/valid/instructions.html#expressions *)
 
-(** a.k.a Block *)
+(** expression, a.k.a block is almost the same as [list instr]
+    except it is typechecking against the [resulttype] rather than [functype].
+
+    so we need this rule to establish the relation between them.
+ *)
 
 Reserved Notation "C '⊢e' expr '∈' ty" (at level 70).
 Inductive valid_expr : context -> expr -> resulttype -> Prop :=
@@ -545,11 +549,11 @@ Hint Constructors valid_expr.
 (** **** Constant Expressions *)
 (** http://webassembly.github.io/spec/core/valid/instructions.html#constant-expressions *)
 
-(** the spec :
+(** the spec said:
 
-        In a constant expression instr∗ 𝖾𝗇𝖽 all instructions in instr∗ must be constant.
+    > In a constant expression [instr* 𝖾𝗇𝖽] all instructions in [instr*] must be constant.
 
-    implicitly fetch the internal instr list from expr without the need of defining [const_instrs]
+    so which extract the [instr*] from [expr] without defining a [Inductive const_instrs].
  *)
 
 Reserved Notation "C '⊢e' instrs 'const'" (at level 70).
@@ -572,6 +576,99 @@ where "C '⊢e' e 'const' " := (const_expr C e)
     
 Hint Constructors const_expr.
 Hint Constructors const_instr.
+
+
+(** **** Constant Expressions - Lemma *)
+(** To get [val] back from [instr], we need boolean operations. 
+    Naming conventions follow the Coq standard lib that postfix with a [b]
+*)
+
+Section ConstLemma.
+
+  Definition const_b (i: instr) : bool := 
+    match i with
+    | Const _ => true
+    | _ => false
+    end.
+
+  Definition consts_b (instrs: list instr) : bool :=
+    forallb const_b instrs.
+
+  Lemma const_eqbP : forall instr C,
+      reflect (C ⊢ instr const) (const_b instr).
+  Proof.
+    intros.
+    apply iff_reflect. split; intros.
+    - (* -> *)
+      destruct instr;
+        try (inversion H).
+      reflexivity.
+    - (* <- *)
+      destruct instr;
+        try (inversion H). 
+      constructor.
+  Qed.
+
+  Lemma consts_eqbP : forall e C,
+      reflect (C ⊢e e const) (consts_b e).
+  Proof with auto.
+    intros.
+    apply iff_reflect. split; intros.
+    - (* -> *)
+      inverts H.
+      induction e.
+      + (* [] *) simpl...
+      + (* :: *)
+        simpl. 
+        apply andb_true_iff.
+        split.
+        ++ (* head *)
+          apply Forall_inv in H0.
+          destruct (const_eqbP a C)...
+        ++ (* tail *)
+          apply Forall_inv_tail in H0.
+          apply IHe...
+    - (* <- *)
+      induction e.
+      + (* [] *) constructor. apply Forall_nil.
+      + (* :: *)
+        simpl in H.
+        apply andb_true_iff in H.
+        destruct H.
+        constructor.
+        constructor.
+        ++ destruct (const_eqbP a C). auto. inverts H.
+        ++ apply IHe in H0. inverts H0...
+  Qed.
+
+  Lemma const_val : forall instr C,
+      C ⊢ instr const ->
+      exists val, instr = Const val.
+  Proof with auto.
+    introv H.
+    destruct instr;
+      try (inversion H); subst.
+    exists val...
+  Qed.
+
+  Lemma consts_vals : forall e C,
+      C ⊢e e const ->
+      exists vals, e = map Const vals.
+  Proof with auto.
+    introv H.
+    induction e.
+    - exists (@nil val)...
+    - inverts H.
+      inverts H0.
+      assert (C ⊢e e const). constructor. assumption.
+      apply IHe in H.
+      destruct H.
+      apply const_val in H2.
+      destruct H2; subst.
+      exists (x0 :: x). simpl...
+  Qed.
+
+End ConstLemma.
 
 (* postpone functional type checking.
 

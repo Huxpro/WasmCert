@@ -283,3 +283,162 @@ Definition eval_unop := eval_op S.IntOp.unop S.IntOp.unop S.FloatOp.unop S.Float
 
 *)
 
+
+Section NumericsPreservation.
+
+Lemma eval_unop_preserve_type : forall op val1 val,
+    eval_unop op val1 = Ok (Some val) ->
+    type_of op = type_of val.
+Proof.
+  intros.
+  unfold eval_unop in *.
+  destruct op; destruct val1; destruct val; simpl in *;
+    (* good cases *)
+    try reflexivity;
+
+    (* bad cases *)
+    inverts H; unfold OptionMonadNotations.fmap_opt in *;
+      destruct u;
+      try (try (destruct (I32.clz t); inverts H1; inverts H1);
+           try (destruct (I32.ctz t); inverts H1; inverts H1);
+           try (destruct (I32.popcnt t); inverts H1; inverts H1)
+          );
+      try (try (destruct (I64.clz t); inverts H1; inverts H1);
+           try (destruct (I64.ctz t); inverts H1; inverts H1);
+           try (destruct (I64.popcnt t); inverts H1; inverts H1)
+          );
+      try (try (destruct (F32.neg t); inverts H1; inverts H1);
+           try (destruct (F32.abs t); inverts H1; inverts H1);
+           try (destruct (F32.sqrt t); inverts H1; inverts H1);
+           try (destruct (F32.ceil t); inverts H1; inverts H1);
+           try (destruct (F32.floor t); inverts H1; inverts H1);
+           try (destruct (F32.trunc t); inverts H1; inverts H1);
+           try (destruct (F32.nearest t); inverts H1; inverts H1)
+          );
+      try (try (destruct (F64.neg t); inverts H1; inverts H1);
+           try (destruct (F64.abs t); inverts H1; inverts H1);
+           try (destruct (F64.sqrt t); inverts H1; inverts H1);
+           try (destruct (F64.ceil t); inverts H1; inverts H1);
+           try (destruct (F64.floor t); inverts H1; inverts H1);
+           try (destruct (F64.trunc t); inverts H1; inverts H1);
+           try (destruct (F64.nearest t); inverts H1; inverts H1)
+          ).
+Qed.
+
+Lemma eval_binop_preserve_type : forall op val1 val2 val,
+    eval_binop op val1 val2 = Ok (Some val) ->
+    type_of op = type_of val.
+Proof.
+  intros.
+  unfold eval_binop in *.
+  destruct op; destruct val1; destruct val2; destruct val; simpl in *;
+    (* good cases *)
+    try reflexivity;
+
+    (* bad cases *)
+    inverts H; unfold OptionMonadNotations.fmap_opt in *;
+      destruct b;
+      try (destruct s); 
+      try (try (destruct (I32.add t t0); inverts H1; inverts H1);
+           try (destruct (I32.sub t t0); inverts H1; inverts H1);
+           try (destruct (I32.mul t t0); inverts H1; inverts H1);
+           try (destruct (I32.and t t0); inverts H1; inverts H1);
+           try (destruct (I32.or t t0); inverts H1; inverts H1);
+           try (destruct (I32.xor t t0); inverts H1; inverts H1);
+           try (destruct (I32.shl t t0); inverts H1; inverts H1);
+           try (destruct (I32.rotl t t0); inverts H1; inverts H1);
+           try (destruct (I32.rotr t t0); inverts H1; inverts H1);
+           try (destruct (I32.div_u t t0); inverts H1; inverts H1);
+           try (destruct (I32.div_s t t0); inverts H1; inverts H1);
+           try (destruct (I32.rem_u t t0); inverts H1; inverts H1);
+           try (destruct (I32.rem_s t t0); inverts H1; inverts H1);
+           try (destruct (I32.shr_u t t0); inverts H1; inverts H1);
+           try (destruct (I32.shr_s t t0); inverts H1; inverts H1)
+          );
+      try (try (destruct (I64.add t t0); inverts H1; inverts H1);
+           try (destruct (I64.sub t t0); inverts H1; inverts H1);
+           try (destruct (I64.mul t t0); inverts H1; inverts H1);
+           try (destruct (I64.and t t0); inverts H1; inverts H1);
+           try (destruct (I64.or t t0); inverts H1; inverts H1);
+           try (destruct (I64.xor t t0); inverts H1; inverts H1);
+           try (destruct (I64.shl t t0); inverts H1; inverts H1);
+           try (destruct (I64.rotl t t0); inverts H1; inverts H1);
+           try (destruct (I64.rotr t t0); inverts H1; inverts H1);
+           try (destruct (I64.div_u t t0); inverts H1; inverts H1);
+           try (destruct (I64.div_s t t0); inverts H1; inverts H1);
+           try (destruct (I64.rem_u t t0); inverts H1; inverts H1);
+           try (destruct (I64.rem_s t t0); inverts H1; inverts H1);
+           try (destruct (I64.shr_u t t0); inverts H1; inverts H1);
+           try (destruct (I64.shr_s t t0); inverts H1; inverts H1)
+          );
+      try (try (destruct (F32.add t t0); inverts H1; inverts H1);
+           try (destruct (F32.sub t t0); inverts H1; inverts H1);
+           try (destruct (F32.mul t t0); inverts H1; inverts H1);
+           try (destruct (F32.div t t0); inverts H1; inverts H1);
+           try (destruct (F32.min t t0); inverts H1; inverts H1);
+           try (destruct (F32.max t t0); inverts H1; inverts H1);
+           try (destruct (F32.copysign t t0); inverts H1; inverts H1)
+          );
+      try (try (destruct (F64.add t t0); inverts H1; inverts H1);
+           try (destruct (F64.sub t t0); inverts H1; inverts H1);
+           try (destruct (F64.mul t t0); inverts H1; inverts H1);
+           try (destruct (F64.div t t0); inverts H1; inverts H1);
+           try (destruct (F64.min t t0); inverts H1; inverts H1);
+           try (destruct (F64.max t t0); inverts H1; inverts H1);
+           try (destruct (F64.copysign t t0); inverts H1; inverts H1)
+          ).
+Qed.
+
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Archive *)
+
+(* These two conclusion is wrong...
+   During the [preservation] proof we only need to simpl [type_of b = T_i32] which is obvious.
+
+   Archived the structure for possible uses in variant form.
+ *)
+Lemma eval_testop_preserve_type : forall op val1 (b: bool),
+    eval_testop op val1 = Ok b ->
+    type_of op = type_of (b: val).
+Proof.
+  intros.
+  unfold eval_testop in *.
+  destruct op; destruct val1; simpl in *; (* [type_of b = T_i32] *)
+    (* good cases *)
+    try reflexivity;
+
+    (* bad cases *)
+    try solve [inverts H; destruct t; simpl].
+
+  - (*
+        IOp64.testop S.IntOp.Eqz (i64 t0) = Ok b
+        ----------------------------------------
+                 T_i64 = T_i32
+     *)
+    destruct t.
+    destruct IOp64.testop.
+    + admit.
+    + inverts H.
+Admitted.
+
+Lemma eval_relop_preserve_type : forall op val1 val2 (b: bool),
+    eval_relop op val1 val2 = Ok b ->
+    type_of op = type_of (b: val).
+Proof.
+  intros.
+  unfold eval_relop in *.
+  destruct op; destruct val1; destruct val2; simpl in *; (* [type_of b = T_i32] *)
+    (* good cases *)
+    try reflexivity;
+
+    (* bad cases *)
+    try solve [inverts H; destruct t; simpl].
+
+    - admit. (* We need a way to re-interpret bool -> i32 -> i64? *)
+    - admit. (* We need a way to re-interpret bool -> i32 -> f32? *)
+    - admit. (* We need a way to re-interpret bool -> i32 -> f64? *)
+Admitted.
+
+End NumericsPreservation.

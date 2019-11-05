@@ -174,7 +174,7 @@ Inductive blocktype :=
 Inductive instr :=
 (* ----------------------------------------------------------------- *)
 (** *** Numeric Instruction *)
-  | Const (v: val)
+  | Const (val: val)  (* [Const] is just a thin wrapper on [val] *)
   | Unop (op: unop)
   | Binop (op: binop)
   | Testop (op: testop)
@@ -201,6 +201,7 @@ Inductive instr :=
 (** *** Control Instructions *)
   | Nop
   | Unreachable
+  (* TODO: technically, they should take a [expr] *)
   | Block (bt: blocktype) (b: list instr)
   | Loop (bt: blocktype) (b: list instr)
   | If (bt: blocktype) (b1: list instr) (b2: list instr)
@@ -214,6 +215,7 @@ Inductive instr :=
 Coercion Const : val >-> instr.
 
 
+(* The only difference is typing aginast [resulttype] *)
 Definition expr : Type := list instr.
 
 

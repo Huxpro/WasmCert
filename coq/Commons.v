@@ -6,13 +6,32 @@
 
 
 (* ################################################################# *)
-(** * Commons *)
+(** * Commons / Shared *)
 
 (* ================================================================= *)
-(** ** Common Dependency *)
+(** ** Dependency *)
 
 From Coq Require Export Lists.List.
 Export ListNotations.
+
+From Coq Require Export Bool.Bool. (* Provide [reflect] *)
+
+From Coq Require Export Init.Nat.
+From Coq Require Export Arith.Arith.
+From Coq Require Export Arith.EqNat.
+From Coq Require Export omega.Omega.
+
+From Coq Require Export Program.Equality. (* Provide [dependent induction] *)
+
+From Wasm.Lib Require Export LibTactics.
+
+
+(* ================================================================= *)
+(** ** Polyfill *)
+
+(* https://coq.inria.fr/library/Coq.Lists.List.html *)
+Axiom Forall_inv_tail
+    : forall {A: Type} (P : A -> Prop) (x0 : A) (xs : list A), Forall P (x0 :: xs) -> Forall P xs.
 
 
 (* ================================================================= *)

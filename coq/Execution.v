@@ -29,13 +29,9 @@ Import OptionMonadNotations.
 (* ----------------------------------------------------------------- *)
 (** *** Results *)
 
-(** In the current version of WebAssembly, a result can consist of at most one value. *)
-
 Inductive result :=
-  | R_val (_: list val)
-  | R_trap. (* coincident with [trap] *)
-
-(* We might need someway to coerce [admin_instr] to [result] *)
+  | R_vals (_: list val)
+  | R_trap. 
 
 
 (* ----------------------------------------------------------------- *)
@@ -232,7 +228,7 @@ Definition upd_locals (F: frame) (x: nat) (v: val) :=
   
 Notation "F 'with_locals[' x ] = v" :=
   (upd_locals F x v)
-  (at level 69, left associativity) : wasm_scope.
+  (at level 68, left associativity) : wasm_scope.
 
 
 Lemma upd_locals_inv: forall F F' n c,
@@ -300,28 +296,24 @@ Inductive admin_instr :=
   | Invoke (closure: funcaddr)
   | Label (n: nat) (cont: list instr) (code: list admin_instr)
   | Frame (n: nat) (activation: frame) (code: list admin_instr).
-
-(** lifting *)
-
-Definition lift_plains (instrs: list instr) : list admin_instr :=
-  map Plain instrs.
-
-Definition lift_vals(vals: list val) : list instr :=
-  map Const vals.
-
-(* TBD: need a code to be able to lift to Frame *)
-Definition lift_activation (a: activation) :=
-  Frame a.(A_arity) a.(A_frame).
+Hint Constructors admin_instr.
 
 
-(** Coercions and Notations *)
+(** Lifting *)
+
+(* Notation save a [unfold] in proof over Definition *)
+
+Notation lift_instrs := (map Plain).
+Notation lift_vals := (map Const).
+
+
 (** since the coercion doesn't work well with [list X] so we introduce
-    rather heavy notation for the lifting *)
+    notation for the lifting *)
 
 Coercion Plain : instr >-> admin_instr.
+Notation "↑ instrs" := (lift_instrs instrs) (at level 60).         (* \uparrow *)
+Notation "⇈ vals" := (lift_instrs (lift_vals vals)) (at level 50). (* \upuparrows *)
 
-Notation "↑ instrs" := (lift_plains instrs) (at level 60).         (* \uparrow *)
-Notation "⇈ vals" := (lift_plains (lift_vals vals)) (at level 50). (* \upuparrows *)
 
 Module AdminInstrCoercisonTest.
 
@@ -366,6 +358,20 @@ Module AdminInstrCoercisonTest.
     |}.
 
 End AdminInstrCoercisonTest.
+
+
+(* We might ways transform between [result] and [admin_instr] *)
+
+Section ResultAdminInstr.
+
+  Definition result_to_ainstr (res: result) : list admin_instr :=
+    match res with
+    | R_vals vals => ⇈vals  (* lost information *)
+    | R_trap => [Trap]
+    end.
+  
+End ResultAdminInstr.
+
 
 
 (* ----------------------------------------------------------------- *)
@@ -693,25 +699,25 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
       eval_unop op val1 = Ok (Some val) ->
       ↑[Const val1; Unop op] ↪s ↑[Const val]
 
-  | SS_unop__none : forall op c1,
-      eval_unop op c1 = Ok None ->
-      ↑[Const c1; Unop op] ↪s [Trap]
+  | SS_unop__none : forall op val1,
+      eval_unop op val1 = Ok None ->
+      ↑[Const val1; Unop op] ↪s [Trap]
 
-  | SS_binop__some : forall op c1 c2 c,
-      eval_binop op c1 c2 = Ok (Some c) ->
-      ↑[Const c1; Const c2; Binop op] ↪s ↑[Const c]
+  | SS_binop__some : forall op val1 val2 val,
+      eval_binop op val1 val2 = Ok (Some val) ->
+      ↑[Const val1; Const val2; Binop op] ↪s ↑[Const val]
 
-  | SS_binop__none : forall op c1 c2, 
-      eval_binop op c1 c2 = Ok None ->
-      ↑[Const c1; Const c2; Binop op] ↪s [Trap]
+  | SS_binop__none : forall op val1 val2, 
+      eval_binop op val1 val2 = Ok None ->
+      ↑[Const val1; Const val2; Binop op] ↪s [Trap]
 
-  | SS_testop: forall op c1 (c: bool),
-      eval_testop op c1 = Ok c ->
-      ↑[Const c1; Testop op] ↪s ↑[Const c]
+  | SS_testop: forall op val1 (b: bool),
+      eval_testop op val1 = Ok b ->
+      ↑[Const val1; Testop op] ↪s ↑[Const b]
 
-  | SS_relop: forall op c1 c2 c,
-      eval_relop op c1 c2 = Ok c ->
-      ↑[Const c1; Const c2; Relop op] ↪s ↑[Const c]
+  | SS_relop: forall op val1 val2 (b: bool),
+      eval_relop op val1 val2 = Ok b ->
+      ↑[Const val1; Const val2; Relop op] ↪s ↑[Const b]
 
 (* ----------------------------------------------------------------- *)
 (** *** Parametric Instruction *)
@@ -793,6 +799,7 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
   (*     [Frame n F (⇈vals)]  ↪s ⇈vals *)
 
 where "instrs1 '↪s' instrs2"  := (step_simple instrs1 instrs2).
+Hint Constructors step_simple.
 
 
 (* S; F; instr* ↪ S'; F'; instr'* *)
@@ -1003,6 +1010,7 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
   (*   (S, F, ↑instrs) ↪ (S', F', ↑instrs')  *)
 
 where "SFI1 '↪' SFI2" := (step SFI1 SFI2).
+Hint Constructors step.
 
 Module ConfigStepTest.
 
