@@ -360,19 +360,6 @@ Module AdminInstrCoercisonTest.
 End AdminInstrCoercisonTest.
 
 
-(* We might ways transform between [result] and [admin_instr] *)
-
-Section ResultAdminInstr.
-
-  Definition result_to_ainstr (res: result) : list admin_instr :=
-    match res with
-    | R_vals vals => ⇈vals  (* lost information *)
-    | R_trap => [Trap]
-    end.
-  
-End ResultAdminInstr.
-
-
 
 (* ----------------------------------------------------------------- *)
 (** *** Blocking Contexts *)
@@ -984,8 +971,8 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
 
 (** **** Trap *)
 
-  (* | SC_trap__E : forall E S F,  *)
-  (*     (S, F, plug__E E [Trap]) ↪ (S, F, [Trap]) *)
+  | SC_trap__E : forall E S F,
+      (S, F, plug__E E [Trap]) ↪ (S, F, [Trap])
 
   (* | SC_trap__frame : forall S F n F',  *)
   (*     (S, F, [Frame n F' [Trap]]) ↪ (S, F, [Trap]) *)

@@ -109,17 +109,17 @@ where " '⊢v*' vals ∈ ts" := (valid_values vals ts).
 Hint Constructors valid_values.
 
 
-Reserved Notation " '⊢r' r ∈ ts" (at level 70).
+Reserved Notation " '⊢r' res ∈ rt" (at level 70).
 Inductive valid_result : result -> list valtype -> Prop :=
 
-  | VR_vals : forall vals ts,
-      Forall2 (fun val t => ⊢v val ∈ t) vals ts ->
-      ⊢r R_vals vals ∈ ts
+  | VR_vals : forall vals rt,
+      Forall2 (fun val t => ⊢v val ∈ t) vals rt ->
+      ⊢r R_vals vals ∈ rt
 
-  | VR_trap : forall ts,
-      ⊢r R_trap ∈ ts
+  | VR_trap : forall rt,
+      ⊢r R_trap ∈ rt
 
-where " '⊢r' r ∈ ts" := (valid_result r ts).
+where " '⊢r' res ∈ rt" := (valid_result res rt).
 
 
 (* ================================================================= *)

@@ -424,26 +424,35 @@ Ltac invert_eq_snoc_app Heq cdr car :=
 
 Module InvertEqSnocAppTest.
 
+  Lemma nil_case : forall cdr,
+      [] = cdr ++ [3] ->
+      2 = 3.
+  Proof.
+    introv Heq.
+    dup.
+    - invert_eq_snoc_app_discharge Heq cdr 3.  (* works! *)
+    - invert_eq_snoc_app_compute Heq.  (* also works! *)
+  Qed.
+
   Lemma discharge : forall cdr,
       [1; 2] = cdr ++ [3] ->
       2 = 3.
   Proof.
+    introv Heq.
     dup.
-    - introv Heq.
-      invert_eq_snoc_app_discharge Heq cdr 3.
-    - introv Heq.
-      invert_eq_snoc_app Heq cdr 3.
+    - invert_eq_snoc_app_discharge Heq cdr 3.
+    - invert_eq_snoc_app_compute Heq. 
   Qed.
 
   Lemma compute : forall cdr,
       [1; 2] = cdr ++ [2] ->
       2 = 2.
   Proof.
+    introv Heq.
     dup.
-    - introv Heq.
-      invert_eq_snoc_app_compute Heq. reflexivity.
-    - introv Heq.
-      invert_eq_snoc_app Heq cdr 3. reflexivity.
+    - invert_eq_snoc_app_discharge Heq cdr 3. (* doesn't work *)
+      invert_eq_snoc_app_compute Heq. reflexivity.  (* works *)
+    - invert_eq_snoc_app Heq cdr 3. reflexivity.
   Qed.
 
 End InvertEqSnocAppTest.
@@ -733,6 +742,11 @@ Proof with auto.
     intros HE.
     apply plug_E_ϵ in HE; subst.
     apply IHHSC...
+
+  - (* [SC_trap__E] *)
+    intros HE.
+    apply plug_E_ϵ in HE; subst.
+    inverts HE.
 Qed.
 
 
@@ -757,14 +771,6 @@ Lemma decompose : forall C instrs ts0 ts,
       map type_of vals0 = ts0 -> (* I probably don't care *)
       map type_of vals  = ts ->  (* I care *)
       instrs = map Const (vals0 ++ vals).
-Proof.
-  Admitted.
-
-Lemma all_of_type : forall C instrs ts,
-    C ⊢* instrs ∈ [] --> ts ->
-    exists vals,
-      map type_of vals = ts -> 
-      instrs = map Const vals.
 Proof.
   Admitted.
 
@@ -829,7 +835,7 @@ Admitted.
 (** ** Preservation - VAIS_snoc -> SC_simple*)
 
 
-Lemma preservation_SC_simple : forall C S ainstrs ainstr__N ainstrs' ts0 ts2 ts3,
+Lemma preservation_SC_simple : forall S C ainstrs ainstr__N ainstrs' ts0 ts2 ts3,
       (S,C) ⊢a* ainstrs ∈ [] --> (ts0 ++ ts2)  -> (* [HVAIS] *)
       (S,C) ⊢a  ainstr__N ∈ ts2 --> ts3 ->          (* [HVAI__N] *)
       ainstrs ++ [ainstr__N] ↪s ainstrs' ->        (* [HSS] *)
@@ -982,6 +988,8 @@ Proof with eauto.
     [inductions] (from [LibTactics.v]) are used.
 
     Though w/o [as] the naming is much worse.
+
+    To me dependent induction is like [inversion] + [induction]
 *)
 
 Theorem preservation : forall S T S' T' rt,
@@ -992,12 +1000,63 @@ Proof with eauto.
   introv HVC.
 
   (* valid_config *)
-  inverts keep HVC as HSok HVT.
+  inverts HVC as HSok HVT.
     (* valid_store *)
     (* valid_thread *)
-    inverts keep HVT as HVA HVAIS.
+    inverts HVT as HVA HVAIS.
       (* valid_frame *)
-      inverts keep HVA as HVMI HVV.
+      inverts HVA as HVMI HVV.
+        (* valid_moduleinst *)
+        (* valid_value *)
+      (* valid_admin_instrs *)
+
+  introv HSC. simpl in HSC.
+    destruct T' as [F' ainstrs'].
+
+  dup.
+  induction HSC.
+  + (* SC_simple *)
+    admit.
+  + (* SC_E *)
+    apply IHHSC.
+  + (* SC_E__trap *)
+    admit.
+
+  + dependent induction HSC.
+
+  - (* SC_simple *)
+    admit.
+
+  - (* SC_E *)
+      remember {| A_locals := vals; A_module := mi |} as F.
+      remember (C0 with_locals = ts with_return = None) as C.
+      (* with [dependent induction], induction hypo is still too specific
+         by asking the internal [ainstrs0 ∈ [] --> rt]
+
+         the interesting thing is that with [induction]...
+         the induction hypo can immediately prove the goal...!?
+
+         N.B. that [plug__E E ainstrs_whatever] return an ainstrs as well.
+         So if the IH is general enough then it can apply back.
+         But we lost information by induction generalized like that...
+       *)
+      eapply IHHSC...
+Abort.
+
+Theorem preservation : forall S T S' T' rt,
+    ⊢c (S, T) ∈ rt ->
+    $(S, T) ↪ $(S', T') ->
+    ⊢c (S', T') ∈ rt /\ ⊢S S ⪯ S'.
+Proof with eauto.
+  introv HVC.
+
+  (* valid_config *)
+  inverts HVC as HSok HVT.
+    (* valid_store *)
+    (* valid_thread *)
+    inverts HVT as HVA HVAIS.
+      (* valid_frame *)
+      inverts HVA as HVMI HVV.
         (* valid_moduleinst *)
         (* valid_value *)
       (* valid_admin_instrs *)
@@ -1012,16 +1071,17 @@ Proof with eauto.
     eapply (S_F_ϵ_is_normal_form S _ S' F'). 
     exists ainstrs'...
 
-  - (* remember {| A_locals := vals; A_module := mi |} as F; *)
+  - rename H into HVAI__N.
     (* VAIS_snoc:
 
-      [HVAIS : S0,C1 ⊢a* ainstrs ∈ ts1 --> (ts0 ++ ts2)]
-      [HVAI__N : S0,C1 ⊢a  ainstr__N ∈ ts2 --> ts3]                      (* H *)
+      [HVAIS : (S,C) ⊢a* ainstrs ∈ ϵ --> (ts0 ++ ts2)]
+      [HVAI__N : (S,C) ⊢a  ainstr__N ∈ ts2 --> ts3]              (* H *)
       [HSC   : (S, F, (ainstrs ++ [ainstr__N])) ↪ (S', F', ainstrs')]
        ------------------------------------------------------------
       [⊢c (S', (F', ainstrs')) ∈ rt /\ ⊢S S ⪯ S']
 
-     *)
+    *)
+    clear IHHVAIS.
     dependent induction HSC.
     + (* SC_simple *)
       split. 
@@ -1033,9 +1093,41 @@ Proof with eauto.
       ++ (* Preserve Store *) (* [⊢S S ⪯ S] *)
          apply (extend_store_refl _ HSok). 
 
-    + (* SC_E *) (* Harder *)
-      admit.
+    + (* SC_E *) 
+      (*
+         [Heqplug : plug__E E ainstrs0  = ainstrs ++ [ainstr__N]
+                =>        E[ainstrs0] = ainstrs ++ ainstrsN
+        
+         [HSC : (S, F, ainstrs0) ↪ (S', F', ainstrs'0)
+       ---------------------------------------------------
+          
 
+       *)
+      remember {| A_locals := vals; A_module := mi |} as F.
+      remember (C0 with_locals = ts with_return = None) as C.
+      rename x into Heqplug.
+      (* this induction hypo is not stronger/general enough
+
+           (S', F', ainstrs'0) = (S'0, F'0, ainstrs') ->
+
+         this pose constraints on [ainstrs'0 = ainstrs']
+         then this...
+
+           ⊢c (S'0, (F'0, ainstrs')) ∈ ts0 ++ ts3 /\ ⊢S S0 ⪯ S'0
+
+         but ts0 ++ ts3 is the type of [plug__E E ainstrs0] not [ainstrs0]
+
+         but what we want would be
+
+                   [ainstrs0] -(preserve type)-> [       ainstrs0']
+           [plug__E E ainstrs0] -(preserve type)-> [plug E ainstrs0']
+       *)
+(*
+Lemma preserve_SC_E_generized: forall S C
+*)
+                                 
+
+      edestruct IHHSC...
 Admitted.
 
   
