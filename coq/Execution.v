@@ -536,7 +536,7 @@ Notation "'$' cfg" := (config_to_tuple cfg) (at level 49).
 
 Inductive eval_context :=
   | E_hole 
-  | E_seq (vals: list val) (E: eval_context) (instrs: list admin_instr)
+  | E_seq (vals: list val) (E: eval_context) (ainstrs: list admin_instr)
   | E_label (n: nat) (cont: list instr) (E: eval_context).
 
 Fixpoint plug_eval_context (E: eval_context) (hole: list admin_instr) : list admin_instr :=

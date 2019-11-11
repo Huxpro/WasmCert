@@ -340,6 +340,26 @@ Proof with auto.
     + admit.
 Admitted.
 
+(* combine *)
+Lemma exists_snoc_app: forall {X: Type} (xs : list X), 
+    xs <> [] ->
+    exists xs' x, xs = xs' ++ [x].
+Proof with auto.
+  introv H.
+  apply exists_unsnoc in H.
+  destruct H as (xs' & x & Heq).
+  exists xs' x.
+  apply unsnoc_some_eq_snoc_app...
+Qed.
+
+Lemma cons_to_snoc_app: forall {X: Type} (x : X) (xs : list X), 
+    exists xs' x', (x::xs) = xs' ++ [x'].
+Proof with eauto.
+  intros.
+  destruct (exists_snoc_app (x::xs)) as (xs' & x' & Heq).
+  unfold not; intros Hcontra; symmetry in Hcontra; eapply nil_cons...
+  exists xs' x'...
+Qed.
 
 Lemma unsnoc_car_snoc_app_some : forall {X: Type} (l: list X) x,
     unsnoc_car (l ++ [x]) = Some x.
@@ -751,83 +771,8 @@ Qed.
 
 
 (* ================================================================= *)
-(** ** Lemma - Unproved *)
+(** ** Lemma - Unproved/Unused *)
 
-(* We observed this is too strong and we need
-   a specific [C] and [ts1] (via [remember].
-   also to have a specifc [ts1],
-   we need to connect the the resulttype with thread result.
-   and discover this spec bug.
-
-    Lemma decompose : forall C instrs instr__N ts0 ts1 ts ts3,
-        C ⊢* instrs ∈ ts1 --> (ts0 ++ ts) (* ts2 *) ->
-        C ⊢  instr__N ∈ ts --> ts3 ->
-        ∃ instrs' vals, instrs ++ [instr__N] = instrs' ++ vals
- *)
-     
-Lemma decompose : forall C instrs ts0 ts,
-    C ⊢* instrs ∈ [] --> (ts0 ++ ts) ->
-    exists vals0 vals,
-      map type_of vals0 = ts0 -> (* I probably don't care *)
-      map type_of vals  = ts ->  (* I care *)
-      instrs = map Const (vals0 ++ vals).
-Proof.
-  Admitted.
-
-
-(* ... *)
-Lemma functype_inv : forall C instr__N ts0 ts1 ts2,
-  C ⊢ instr__N ∈ ts1 --> ts2 ->
-  C ⊢ instr__N ∈ (ts0 ++ ts1) --> (ts0 ++ ts2).
-Proof.
-  Admitted.
-
-
-(* TODO: rename into [singleton_instr_typing] *)
-Lemma drop_singleton_typing: forall C instr__N ts1 ts2,
-    C ⊢* [instr__N] ∈ ts1 --> ts2 ->
-    C ⊢ instr__N ∈ ts1 --> ts2.
-Proof.
-  introv HVIS.
-  inverts HVIS.
-  replace ([instr__N]) with ([] ++ [instr__N]) in H.
-  apply snoc_app_inj in H.
-  inverts H.
-  inverts H3. apply functype_inv. assumption.
-  apply app_eq_nil in H.
-  inverts H.
-  false H1.
-  reflexivity.
-Qed.
-  
-Lemma singleton_ainstr_typing: forall S C ainstr__N ts1 ts2,
-    (S,C) ⊢a* [ainstr__N] ∈ ts1 --> ts2 ->
-    (S,C) ⊢a  ainstr__N ∈ ts1 --> ts2.
-Admitted.
-
-
-(* In favor of [vals_typing_eq] *)
-Lemma vals_typing: forall S C vals, 
-     (S,C) ⊢a* ⇈vals ∈ [] --> map type_of vals.
-Proof.
-  intros.
-  destruct vals as [ | ival ivals' ]. 
-  - constructor.
-  - remember (ival :: ivals') as vals.
-    destruct (exists_unsnoc vals) as (vals' & val & Hunsnoc).
-    { unfold not. intros. subst. inversion H. }
-    specialize (unsnoc_some_eq_snoc_app Hunsnoc). intros Heqvals2. 
-    rewrite -> Heqvals2.
-    rewrite -> upup_app. simpl.
-    asserts_rewrite (map type_of (vals' ++ [val]) =  map type_of vals' ++ [type_of val]);
-      try apply map_app.
-    apply VAIS_snoc with (ts := []). 
-    + (* We can't prove it because [snoc] is not defined as an inductive relation *)
-Admitted.    
-
-
-(* ================================================================= *)
-(** ** Lemmas - Cases *)
 
 
 
@@ -961,7 +906,6 @@ Qed.
 
 
 (* Playing with the SC_E proof *)
-(*
 Theorem preservation : forall S T S' T',
     $(S, T) ↪ $(S', T') ->
     forall rt, ⊢c (S, T) ∈ rt ->
@@ -971,12 +915,185 @@ Proof with eauto.
   destruct T as [F ainstrs].
   destruct T' as [F' ainstrs'].
   simpl in HSC.
-  remember (S, F, ainstrs) as SF.
-  remember (S', F', ainstrs') as SF'.
-  gen HeqSF HeqSF'.
-  induction HSC.
+  dependent induction HSC; intros.
   - admit.
   -
+Abort.    
+
+
+
+(* ================================================================= *)
+(** ** Lemma - SC_E related... *)
+
+
+(*
+   ts1 --> [  ainstrs0  |  ainstrs1 ] --> ts3
+   ts1 --> [  ainstrs0  ] --> ts2
+                ts2 --> [  ainstrs1 ] --> ts3
+ *)
+Lemma vais_app : forall S C ainstrs0 ainstrs1 ts1 ts3,
+  (S, C) ⊢a* ainstrs0 ++ ainstrs1 ∈ ts1 --> ts3 <->
+  exists ts2,
+    (S, C) ⊢a* ainstrs0 ∈ ts1 --> ts2
+  /\ (S, C) ⊢a* ainstrs1 ∈ ts2 --> ts3.
+Proof with eauto.
+  split.
+  --- (* -> *)
+  introv HVAISapp.
+  dependent induction HVAISapp;
+    rename x into Heqapp.
+  - symmetry in Heqapp. apply app_eq_nil in Heqapp.
+    inverts Heqapp. eexists. split...
+  - destruct ainstrs1 as [ | ai ais].
+    + destruct ainstrs0 as [ | ai ais ].
+      ++ simpl in Heqapp. symmetry in Heqapp.
+         invert_eq_snoc_app_compute Heqapp.
+      ++ (*
+           [ ainstrs ] ++ [ainstr__N]
+           [ ainstrs0             ] 
+       *)
+        destruct (cons_to_snoc_app ai ais) as (ainstrs1' & ainstr1__N & Heq).
+        rewrite Heq in *.
+        rewrite app_nil_r in Heqapp.
+        eapply snoc_app_inj in Heqapp.
+        inverts Heqapp. 
+        eexists.
+        split...
+    + (*
+           [ ainstrs0 | ainstrs1'] ++ [ainstr__N]
+           [ ainstrs0 | ainstrs1              ] 
+       *)
+      destruct (cons_to_snoc_app ai ais) as (ainstrs1' & ainstr1__N & Heq).
+      rewrite Heq in *.
+      rewrite app_assoc in Heqapp.
+      eapply snoc_app_inj in Heqapp.
+      inverts Heqapp. 
+      edestruct IHHVAISapp as (ts4' & HV1 & HV2)...
+  --- (* <- *)
+Admitted.    
+
+
+(*
+   ts1 --> [  ainstrs0  |  ainstrs1  |  ainstrs2  ] --> ts4
+   ts1 --> [  ainstrs0  ] --> ts2
+                ts2 --> [  ainstrs1 ] --> ts3
+                             ts3 --> [  ainstrs1  ] --> ts4
+ *)
+Lemma vais_app3 : forall S C ainstrs0 ainstrs1 ainstrs2 ts1 ts4,
+  (S, C) ⊢a* ainstrs0 ++ ainstrs1 ++ ainstrs2 ∈ ts1 --> ts4 <->
+  exists ts2 ts3,
+    (S, C) ⊢a* ainstrs0 ∈ ts1 --> ts2
+  /\ (S, C) ⊢a* ainstrs1 ∈ ts2 --> ts3
+  /\ (S, C) ⊢a* ainstrs2 ∈ ts3 --> ts4.
+Proof with eauto.
+  split.
+  - (* -> *)
+    introv Happ3.
+    apply vais_app in Happ3.
+    destruct Happ3 as (ts2 & Hainstrs0 & Happ2).
+    apply vais_app in Happ2.
+    destruct Happ2 as (ts3 & Hainstrs1 & Hainstrs2).
+    exists ts2 ts3...
+  - (* <- *)
+    intros (ts2 & ts3 & H0 & H1 & H2).
+    apply vais_app. exists ts2. split...
+    apply vais_app. exists ts3. split...
+Qed.
+
+
+(*
+      E[ainstrs] : ts1 --> ts2
+   ------------------------------
+        ainstrs  : ts3 --> ts4
+ *)
+Lemma plug_E_inner : forall S C E ainstrs ts1 ts2,
+   (S, C) ⊢a* (plug__E E ainstrs) ∈ ts1 --> ts2 ->
+   exists ts3 ts4, 
+    (S, C) ⊢a* ainstrs ∈ ts3 --> ts4.
+Proof with eauto.
+  introv HVAIS.
+  dependent induction E; simpl in *.
+  - (* E_hole *)
+    eauto.
+  - (* E_seq *)
+    apply vais_app3 in HVAIS.
+    destruct HVAIS as (ts3 & ts4 & HVAIS0 & HVAIS1 & HVAIS2).
+    apply IHE in HVAIS1 as IH.
+    destruct IH as (ts3' & ts4' & HVAIS')...
+  - (* E_label *)
+    (* need to reenable VAI_label and it's just two inversions away. *)
+    admit.
+Admitted.
+        
+
+(*
+        ainstrs  : ts3 --> ts4
+      E[ainstrs] : ts1 --> ts2
+        ainstrs' : ts3 --> ts4
+   ------------------------------
+      E[ainstrs']: ts1 --> ts2
+ *)
+Lemma plug_E_same : forall S C E ainstrs ainstrs' ts1 ts2 ts3 ts4,
+   (S, C) ⊢a* ainstrs ∈ ts3 --> ts4 ->
+   (S, C) ⊢a* ainstrs' ∈ ts3 --> ts4 ->
+   (S, C) ⊢a* (plug__E E ainstrs) ∈ ts1 --> ts2 ->
+   (S, C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts2.
+Proof with eauto.
+  introv Hin Hin' Hplug.
+  dependent induction E; simpl in *. 
+  - (* E_hole *)
+    admit. (* need to show typing is deterministic *)
+  - (* E_seq *)
+    apply vais_app3 in Hplug.
+    destruct Hplug as (ts3' & ts4' & H0 & H1 & H2).
+    apply vais_app3.
+    eexists. eexists...
+  - (* E_label *)
+Admitted.
+
+
+(*
+        ainstrs  :     ts2 --> ts5
+      E[ainstrs] : ts1     -->     ts6
+        ainstrs' :     ts2 --> ts3
+   -------------------------------------
+      E[ainstrs']: ts1     -->     ts4
+ *)
+Lemma plug_E_strong_same : forall S C S' C' E ainstrs ainstrs' ts1 ts3 ts4 ts6,
+     (S, C) ⊢a*          ainstrs   ∈ ts3 --> ts4 ->
+     (S, C) ⊢a* (plug__E E ainstrs)  ∈ ts1 --> ts6 ->
+   (S', C') ⊢a*          ainstrs'  ∈ ts3 --> ts4 ->
+   (S', C') ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts6.
+Proof with eauto.
+  induction E; introv H34 H16 H34'.
+  - admit.
+  - simpl in *.
+    apply vais_app3 in H16 as Happ3.
+    destruct Happ3 as (ts2 & ts5 & H12 & H25 & H56). 
+    specialize (IHE ainstrs0 ainstrs' ts2 ts3 ts4 ts5 H34 H25 H34') as H25'...
+    apply vais_app3.
+    exists ts2 ts5. 
+    splits.
+    + (* vals *) skip.
+    + (* hole *) apply H25'.
+    + (* rest *) 
+      inverts H56 as...
+      introv HVAIS56 HVAI__N56.
+Admitted.
+      
+(*
+  introv H25 H16 H25'. gen S C S' C'.
+  induction E; intros; simpl in *.
+  - (* E_hole *)
+    admit. (* need to show typing is deterministic *)
+  - (* E_seq *)
+    apply vais_app3 in H16 as Happ3.
+    destruct Happ3 as (ts3 & ts4 & H23 & H34 & H45). 
+    edestruct (IHE ainstrs0 ainstrs'. 
+    apply vais_app3.
+    eexists. eexists...
+  - (* E_label *)
+Admitted.
 *)
 
 (* ================================================================= *)
@@ -992,6 +1109,29 @@ Proof with eauto.
     To me dependent induction is like [inversion] + [induction]
 *)
 
+
+(* generailized preservation *)
+
+Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
+    S ⊢A F ∈ C ->
+    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
+    (S, F, ainstrs) ↪ (S', F', ainstrs') ->
+    exists C', S' ⊢A F' ∈ C'  /\ (S', C') ⊢a* ainstrs' ∈ ts1 --> ts2.
+Proof with eauto.
+  introv HVA HVAIS HSC.
+  gen ts1 ts2.
+  dependent induction HSC; intros.
+  - admit.
+  - (* SC_E *)
+    apply plug_E_inner in HVAIS as Hinner.
+    destruct Hinner as (ts3 & ts4 & Hinner).
+    edestruct (IHHSC S F S' F' ainstrs0 ainstrs'0) as (C' & HVA' & Hinner')...
+    exists C'. split... sort.
+Abort.
+
+
+
+(* only top level frame *)
 Theorem preservation : forall S T S' T' rt,
     ⊢c (S, T) ∈ rt ->
     $(S, T) ↪ $(S', T') ->
@@ -1043,6 +1183,7 @@ Proof with eauto.
       eapply IHHSC...
 Abort.
 
+
 Theorem preservation : forall S T S' T' rt,
     ⊢c (S, T) ∈ rt ->
     $(S, T) ↪ $(S', T') ->
@@ -1054,7 +1195,7 @@ Proof with eauto.
   inverts HVC as HSok HVT.
     (* valid_store *)
     (* valid_thread *)
-    inverts HVT as HVA HVAIS.
+    inverts keep HVT as HVA HVAIS.
       (* valid_frame *)
       inverts HVA as HVMI HVV.
         (* valid_moduleinst *)
@@ -1106,6 +1247,12 @@ Proof with eauto.
       remember {| A_locals := vals; A_module := mi |} as F.
       remember (C0 with_locals = ts with_return = None) as C.
       rename x into Heqplug.
+      assert (HVAIS_E : (S,C) ⊢a* (plug__E E ainstrs0) ∈ [] --> (ts0 ++ ts3)).
+      { rewrite Heqplug; eapply VAIS_snoc... }
+      apply plug_E_inner in HVAIS_E.
+      destruct HVAIS_E as (ts03 & ts04 & Hainstrs0).
+
+
       (* this induction hypo is not stronger/general enough
 
            (S', F', ainstrs'0) = (S'0, F'0, ainstrs') ->
