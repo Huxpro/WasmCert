@@ -675,14 +675,15 @@ Lemma vals_normal_form_step_simple : forall vals,
 Proof.
   unfold normal_form. introv. intros H.
   inverts H as. intros ainstrs' HSC.
-  inverts HSC;
-   try (inverts H;
-        apply eq_unsnoc_car_eq in H2;
-        simpl in H2;
-        specialize (unsnoc_car_vals vals);
-        intros [ Hnone | Hsome ];
-        try (rewrite -> Hnone in H2; inverts H2);
-        try (destruct Hsome; rewrite -> H in H2; inverts H2)).
+  inverts HSC; (* will name evidence as H0, H... *)
+  (* TODO : extract Ltac similar to [invert_eq_snoc_app_compute] *)
+  (* Drop - no condition, H0 is the Heq *)
+  try (rename H0 into H);  
+  (* Numerics & Select, H0 for some condition, H for the Heq *)
+  try (apply eq_unsnoc_car_eq in H; simpl in *;
+       specialize (unsnoc_car_vals vals) as [Hnone | Hsome];
+       try (rewrite -> Hnone in H; inverts H);
+       try (destruct Hsome as [x Hx]; rewrite -> Hx in H; inverts H)).
 Qed.
 
 (* 
@@ -726,12 +727,8 @@ Proof.
   unfold normal_form. introv. intros H.
   inverts H as. intros ainstrs' HSC.
   inverts HSC;
-    try(apply eq_unsnoc_car_eq in H;
-        simpl in H;
-        specialize (unsnoc_car_snoc_app_some ainstrs (Plain (Const val)));
-        intros Hsome;
-        rewrite -> Hsome in H;
-        inverts H).
+  try invert_eq_snoc_app_compute H;
+  try invert_eq_snoc_app_compute H0.
 Qed.
       
 Lemma instrs_snoc_app_val_normal_form_step_simple: forall instrs val, 
@@ -801,8 +798,9 @@ Proof with eauto.
       exists ainstrs'...
 
     + (* VI_unop *)
-      inverts keep HSS as Heval Heq; 
-        invert_eq_snoc_app Heq ainstrs (Plain (Unop op)).
+      inverts keep HSS as Heval Heq;
+        try invert_eq_snoc_app Heval ainstrs (Plain (Unop op));
+        try invert_eq_snoc_app Heq ainstrs (Plain (Unop op)).
 
       ++ (* [SS_unop__some] *)
         rewrite <- (app_nil_l (↑[Const val])).
@@ -830,10 +828,10 @@ Proof with eauto.
         +++ (* [Trap] *)
           apply VAI_trap.
 
-
     + (* VI_binop *)
       inverts keep HSS as Heval Heq; 
-        invert_eq_snoc_app Heq ainstrs (Plain (Binop op)).
+        try invert_eq_snoc_app Heval ainstrs (Plain (Binop op));
+        try invert_eq_snoc_app Heq ainstrs (Plain (Binop op)).
 
       ++ (* [SS_binop__some] *)
         rewrite <- (app_nil_l (↑[Const val])).
@@ -863,7 +861,8 @@ Proof with eauto.
 
     + (* VI_testop *)
       inverts keep HSS as Heval Heq; 
-        invert_eq_snoc_app Heq ainstrs (Plain (Testop op)).
+        try invert_eq_snoc_app Heval ainstrs (Plain (Testop op));
+        try invert_eq_snoc_app Heq ainstrs (Plain (Testop op)).
 
       ++ (* [SS_testop] *)
         rewrite <- (app_nil_l (↑[Const b])).
@@ -881,7 +880,8 @@ Proof with eauto.
 
     + (* VI_relop *)
       inverts keep HSS as Heval Heq; 
-        invert_eq_snoc_app Heq ainstrs (Plain (Relop op)).
+        try invert_eq_snoc_app Heval ainstrs (Plain (Relop op));
+        try invert_eq_snoc_app Heq ainstrs (Plain (Relop op)).
 
       ++ (* [SS_testop] *)
         rewrite <- (app_nil_l (↑[Const b])).
@@ -897,10 +897,58 @@ Proof with eauto.
           apply VI_const.
           simpl... (* ??? *) (* apply eval_relop_preserve_type in Heval... *)
 
+    + (* VI_drop *)
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0 ainstrs (Plain Drop);
+        try invert_eq_snoc_app H ainstrs (Plain Drop).
+
+      ++ (* [SS_drop] *)
+        specialize (vals_typing_eq S C [val] _ HVAIS) as Heq; simpl in Heq.
+        destruct (snoc_app_eq_unit _ _ _ Heq)... 
+        subst. constructor.
+
+    + (* VI_select *)
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0 ainstrs (Plain Select);
+        try invert_eq_snoc_app H ainstrs (Plain Select).
+
+      ++ (* [SS_select1] *)
+        rewrite <- (app_nil_l (↑[Const val1])).
+        apply VAIS_snoc with (ts := []);
+          specialize (vals_typing_eq S C [val1; val2; (i32 c)] _ HVAIS) as Heq;
+          simpl in Heq;
+          destruct (snoc_app_eq_same_len ts0 [t; t; T_i32] [type_of val1; type_of val2; T_i32])... 
+
+        +++ (* [] *)
+          subst. constructor.
+
+        +++ (* ↑[Const val1] *)
+          inverts H1.
+          apply VAI_instr.
+          apply VI_const.
+          simpl... 
+
+      ++ (* [SS_select2] *)
+        rewrite <- (app_nil_l (↑[Const val2])).
+        apply VAIS_snoc with (ts := []);
+          specialize (vals_typing_eq S C [val1; val2; (i32 c)] _ HVAIS) as Heq;
+          simpl in Heq;
+          destruct (snoc_app_eq_same_len ts0 [t; t; T_i32] [type_of val1; type_of val2; T_i32])... 
+
+        +++ (* [] *)
+          subst. constructor.
+
+        +++ (* ↑[Const val2] *)
+          inverts H1.
+          apply VAI_instr.
+          apply VI_const.
+          simpl... 
+
   - (* VAI_trap *)
     (* Trap can't take a simple step, so all discharged *)
-    inverts keep HSS as Heval Heq; 
-    invert_eq_snoc_app Heq ainstrs (Trap).
+    inverts keep HSS;
+      try invert_eq_snoc_app H0 ainstrs (Trap);
+      try invert_eq_snoc_app H ainstrs (Trap).
 
 Qed.
 

@@ -284,6 +284,72 @@ Definition eval_unop := eval_op S.IntOp.unop S.IntOp.unop S.FloatOp.unop S.Float
 *)
 
 
+
+(* ================================================================= *)
+(** * Lemma for Progress *)
+
+Section NumericsProgress.
+
+Lemma eval_unop_no_runtime_err: forall op val,
+     type_of op = type_of val ->
+     eval_unop op val = Err ->
+     False.
+Proof.
+  introv Heq Heval.
+  unfold eval_unop in *.
+  destruct op; destruct val; destruct u; simpl in *;
+    try inverts Heq;
+    try inverts Heval.
+Qed.
+
+Lemma eval_binop_no_runtime_err: forall op val1 val2,
+     type_of op = type_of val1 ->
+     type_of op = type_of val2 ->
+     eval_binop op val1 val2 = Err ->
+     False.
+Proof.
+  introv Heq1 Heq2 Heval.
+  unfold eval_binop in *.
+  destruct op; destruct val1; destruct val2; destruct b; simpl in *;
+    try inverts Heq1;
+    try inverts Heq2;
+    try inverts Heval.
+Qed.
+
+Lemma eval_testop_no_runtime_err: forall op val, 
+     type_of op = type_of val ->
+     eval_testop op val = Err ->
+     False.
+Proof.
+  introv Heq Heval.
+  unfold eval_testop in *.
+  destruct op; destruct val; destruct t; simpl in *;
+    try inverts Heq;
+    try inverts Heval.
+Qed.
+
+
+Lemma eval_relop_no_runtime_err: forall op val1 val2, 
+     type_of op = type_of val1 ->
+     type_of op = type_of val2 ->
+     eval_relop op val1 val2 = Err ->
+     False.
+Proof.
+  introv Heq1 Heq2 Heval.
+  unfold eval_relop in *.
+  destruct op; destruct val1; destruct val2; destruct r; simpl in *;
+    try inverts Heq1;
+    try inverts Heq2;
+    try inverts Heval.
+Qed.
+
+End NumericsProgress.
+
+
+
+(* ================================================================= *)
+(** * Lemma for Progress *)
+
 Section NumericsPreservation.
 
 Lemma eval_unop_preserve_type : forall op val1 val,

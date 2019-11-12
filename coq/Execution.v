@@ -709,11 +709,12 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Parametric Instruction *)
 
-  (* | SS_drop : forall val, *)
-  (*     let val : instr := val in *)
-  (*     ↑[val; Drop] ↪s [] *)
+  | SS_drop : forall val,
+      ↑[Const val; Drop] ↪s []
 
-  (* A exprimental alternative definition using per item Coercion *)
+  (* A exprimental alternative definition using per item Coercion
+     slightly more tedious to prove due to extra val introduced
+   *)
   (* | SS_select1 : forall val1 val2 c, *)
   (*     let val1 : instr := val1 in *)
   (*     let val2 : instr := val2 in *)
@@ -726,13 +727,16 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
   (*     c = I32.zero -> *)
   (*     ↑[val1; val2; Const (i32 c); Select] ↪s ↑[val2] *)
 
-  (* | SS_select1 : forall c1 c2 c, *)
-  (*     c <> I32.zero -> *)
-  (*     ↑[Const c1; Const c2; Const (i32 c); Select] ↪s ↑[Const c1] *)
+  | SS_select1 : forall val1 val2 c,
+      (* Should I use I32.eqz or not? *)
+      (* c <> I32.zero -> *)
+      I32.eqz c = false ->
+      ↑[Const val1; Const val2; Const (i32 c); Select] ↪s ↑[Const val1]
 
-  (* | SS_select2 : forall c1 c2 c, *)
-  (*     c = I32.zero -> *)
-  (*     ↑[Const c1; Const c2; Const (i32 c); Select] ↪s ↑[Const c2] *)
+  | SS_select2 : forall val1 val2 c,
+      (* c = I32.zero -> *)
+      I32.eqz c = true ->
+      ↑[Const val1; Const val2; Const (i32 c); Select] ↪s ↑[Const val2]
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction *)

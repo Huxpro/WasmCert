@@ -406,11 +406,11 @@ Inductive valid_instr : context -> instr -> functype -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Parametric Instruction *)
 
-  (* | VI_drop : forall C t, *)
-  (*     C ⊢ Drop ∈ [t] --> [] *)
+  | VI_drop : forall C t,
+      C ⊢ Drop ∈ [t] --> []
 
-  (* | VI_select : forall C t, *)
-  (*     C ⊢ Select ∈ [t; t; T_i32] --> [t] *)
+  | VI_select : forall C t,
+      C ⊢ Select ∈ [t; t; T_i32] --> [t]
 
 (* ----------------------------------------------------------------- *)
 (** *** Variable Instruction *)
