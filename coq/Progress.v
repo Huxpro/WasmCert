@@ -10,9 +10,7 @@
 From Wasm Require Export Validation.
 From Wasm Require Export Execution.
 From Wasm Require Export ExtendedValidation.
-
-(* TODO: Extract the common lemma *)
-From Wasm Require Export Preservation.
+From Wasm Require Export ProofAux.
 
 (* Coercions are too confusing during proofs. *)
 Set Printing Coercions.

@@ -608,7 +608,7 @@ Proof with eauto.
     destruct IHE as (k & B & HB).
     exists (k+1) (B_cons [] n cont B []). 
     simpl. rewrite <- HB...
-Qed.
+Abort.
 
 
 

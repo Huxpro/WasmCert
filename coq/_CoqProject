@@ -10,6 +10,7 @@ Numerics.v
 Validation.v
 Execution.v
 ExtendedValidation.v
+ProofAux.v
 Preservation.v
 Progress.v
 Soundness.v
