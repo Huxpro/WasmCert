@@ -171,6 +171,14 @@ Fail Definition get_c (i: value) : val :=
 (* ----------------------------------------------------------------- *)
 (** *** Module Instances *)
 
+(* Isabelle defines      `funci_agree fs n f = (n < length fs ∧ fs!n = f)`
+   and used              `list_all (funci_agree (s_funcs 𝒮)) fs tfs`
+   in                    `inst_typing 𝒮 ⦇types = ts, funcs = fs ...⦈ ⦇types_t = ts, func_t = tfs ...⦈`
+
+   which allow the store to be bigger than the module and context.
+   this rule actualy merge the "cl_typing" into "inst_typing"
+*)
+
 Reserved Notation "S '⊢mi' Mi '∈' C" (at level 70).
 Inductive valid_moduleinst : store -> moduleinst -> context -> Prop :=
 
@@ -391,12 +399,12 @@ with valid_admin_instr : (store * context) -> admin_instr -> functype -> Prop :=
   (* | VAI_init_elem *)
   (* | VAI_init_data *)
 
-  (* | VAI_label : forall S C n instrs0 ainstrs ts1 ts2, *)
-  (*     (* https://github.com/WebAssembly/multi-value/pull/35 *) *)
-  (*     length ts1 = n -> *)
-  (*     (S,C) ⊢a* ↑instrs0 ∈ ts1 --> ts2 -> *)
-  (*     (S,(C,labels ts1)) ⊢a* ainstrs ∈ [] --> ts2 -> *)
-  (*     (S,C) ⊢a Label n instrs0 ainstrs ∈ [] --> ts2 *)
+  | VAI_label : forall S C n instrs0 ainstrs ts1 ts2,
+      (* https://github.com/WebAssembly/multi-value/pull/35 *)
+      length ts1 = n ->
+      (S,C) ⊢a* ↑instrs0 ∈ ts1 --> ts2 ->
+      (S,(C,labels ts1)) ⊢a* ainstrs ∈ [] --> ts2 ->
+      (S,C) ⊢a Label n instrs0 ainstrs ∈ [] --> ts2
 
   (* | VAI_frame : forall S C ainstrs ts n F, *)
   (*     length ts = n -> *)

@@ -120,13 +120,12 @@ Coercion bool_to_i32 : bool >-> I32.t.
 
 (* nat is used when indexing into vector *)
 
-Definition nat_to_i32 (n : nat) : I32.t:=
+Definition nat_to_i32 (n : nat) : I32.t :=
   match n with
   | 0 => I32.zero
   | n => (I32.from_nat n)
   end.
 Coercion nat_to_i32 : nat >-> I32.t.
-
 
 Module ValTest.
 

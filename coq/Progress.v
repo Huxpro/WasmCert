@@ -501,6 +501,169 @@ Proof with eauto.
           step_snoc_app_cdr S' F' HSC [Plain Select].
 
 
+      ++ (* VI_nop *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            right.
+            decompose_vals_as_E_seq_E vals0.
+            exists S F. eexists;
+              eapply SC_E;
+              eapply SC_simple;
+              eapply SS_nop.
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain Nop] [Plain Nop].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain Nop].
+
+
+      ++ (* VI_unreachable *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            right.
+            decompose_vals_as_E_seq_E vals0.
+            exists S F. eexists;
+              eapply SC_E;
+              eapply SC_simple;
+              eapply SS_unreachable.
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain Unreachable] [Plain Unreachable].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain Unreachable].
+
+
+      ++ (* VI_block *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            right.
+            decompose_vals_as_E_seq_E vals0.
+            exists S F. eexists;
+              eapply SC_E;
+              (* eapply SC_block *)
+              admit.
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain (Block bt instrs)] [Plain (Block bt instrs)].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain (Block bt instrs)].
+
+
+      ++ (* VI_loop *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            right.
+            decompose_vals_as_E_seq_E vals0.
+            exists S F. eexists;
+              eapply SC_E;
+              (* eapply SC_loop *)
+              admit.
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain (Loop bt instrs)] [Plain (Loop bt instrs)].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain (Loop bt instrs)].
+
+
+      ++ (* VI_if *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            right.
+            decompose_vals_as_E_seq_E vals0.
+            exists S F. eexists;
+              eapply SC_E;
+              (* eapply SC_if two cases *)
+              admit.
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain (If bt instrs1 instrs2)] [Plain (If bt instrs1 instrs2)].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain (If bt instrs1 instrs2)].
+
+
+      ++ (* VI_br *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            (* We are not inside a label...how to step?
+               SS_br require a label.
+               this should be forbidden by validtion..
+               C.labels[l0] should have return None.
+
+               Vacouse
+             *)
+            admit.
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain (Br l0)] [Plain (Br l0)].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain (Br l0)].
+
+
+      ++ (* VI_br_if *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            right.
+            rewrite app_assoc in HForall2.
+            invert_Forall2_app_r1 HForall2 vals' val0 Hvals' Hval0.
+            rewrite upup_app; rewrite <- app_assoc; simpl.
+            decompose_vals_as_E_seq_E vals'.
+            exists S F. 
+            inverts Hval0 as Htypeof.
+            destruct val0 as [ c | | | ]; inverts Htypeof.
+            destruct (I32.eqz c) eqn:Heqz;
+              eexists;
+              eapply SC_E;
+              eapply SC_simple.
+            +++++ (* I32.eqz c = true  *) eapply SS_br_if2...
+            +++++ (* I32.eqz c = false *) eapply SS_br_if1...
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain (Br_if l0)] [Plain (Br_if l0)].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain (Br_if l0)].
+
+      ++ (* VI_br_table *)
+        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
+        +++ (* ⊢R *) 
+          inverts HRT as HVR.
+          inverts HVR as HForall2; simpl.
+          ++++ (* VR_vals *)
+            right.
+            rewrite app_assoc in HForall2. rewrite app_assoc in HForall2.
+            invert_Forall2_app_r1 HForall2 vals' val0 Hvals' Hval0.
+            rewrite upup_app; rewrite <- app_assoc; simpl.
+            decompose_vals_as_E_seq_E vals'.
+            exists S F. 
+            inverts Hval0 as Htypeof.
+            destruct val0 as [ i | | | ]; inverts Htypeof.
+            destruct (leb (length ls) (I32.to_nat i)) eqn:Hleb;
+              eexists;
+              eapply SC_E;
+              eapply SC_simple.
+            +++++ (* out of bound [SS_br_table__N] *)
+              (* Need to make two numbers consistent *)
+              admit.
+            +++++ (* in bound [SS_br_table__i] *) 
+              admit.
+          ++++ (* VR_trap *)
+            step_VR_trap S F [Trap; Plain (Br_table ls l__N)] [Plain (Br_table ls l__N)].
+        +++ (* ↪ *)
+          step_snoc_app_cdr S' F' HSC [Plain (Br_table ls l__N)].
+
     + (* VAI_trap *)
       edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
       ++ (* ⊢R *) 
@@ -516,8 +679,13 @@ Proof with eauto.
       ++ (* ↪ *)
         step_snoc_app_cdr S' F' HSC [Trap].
 
-Qed.
+    + (* VAIS_label *)
+      introv HVAIS__cont HVAIS__rest.
+      inverts HVAIS__rest.
+      ++ (* [] *) skip.
+         (* TODO: need to generailize the context, i.e., the entire theorem *)
 
+Admitted.
 
 (** Archive - How I found it need to be a induction. *)
 

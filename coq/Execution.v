@@ -70,12 +70,12 @@ Definition empty_moduleinst :=
 
 (* Print Structure.func. *)
 
-(* [func] is the AST func: 
+(* [func] is the func definition (AST in its bytecode form): 
      - type signature [F_type   : typeidx]
      - locals type    [F_locals : list valtype]
      - actual code    [F_body   : expr]  (expr := list instr)
 
-   [funcinst] is the closure (heap-allocated, as all other "Xinst"):
+   [funcinst] is the closure (heap-allocated, as all other "XXXinst"):
      - environment   [FI_module : module_inst]
      - code pointer  [FI_code   : func]
      - type          [FI_type   : functype]
@@ -84,7 +84,7 @@ Definition empty_moduleinst :=
      - return arity  [A_arity  : nat]
      - actual locals [A_locals : list val]         (taken from stack)   (recorded in frame)
      - actual mdule  [A_module : moduleinst]       (taken from closure) (recorded in frame)
-     - actual code   [code     : list admin_instr] (lifting from closure)
+     - actual code   [code     : list admin_instr] (lifted from closure)
  *)
 
 (* 
@@ -391,7 +391,7 @@ End AdminInstrCoercisonTest.
 Inductive block_context : nat -> Type :=
 
   (* B0 ::= val∗ [_] instr∗  -- this is equiv to E_val *)
-  | B_nil  : forall (vals: list val) (* [_] *) (instrs: list admin_instr),
+  | B_nil  : forall (vals: list val) (* [_] *) (ainstrs: list admin_instr),
                block_context 0
 
   (* Bk+1 ::= val∗ label n {instr∗} Bk end instr∗  *)
@@ -399,7 +399,7 @@ Inductive block_context : nat -> Type :=
                (vals: list val)
                (n: nat) (cont: list instr)  (* Label *)
                (B: block_context k)
-               (instrs: list admin_instr),
+               (ainstrs: list admin_instr),
                block_context (k+1).
 
 Fixpoint plug_block_context {k: nat} (B: block_context k) (hole: list admin_instr) : list admin_instr :=
@@ -573,6 +573,46 @@ Module EvalContextTest.
 End EvalContextTest.
 
 
+(* ----------------------------------------------------------------- *)
+(** *** Evaluation Contexts - Blocking Contexts Correspondence *)
+
+(* Every blocking context is an evaluation context *)
+Lemma B_co_E: forall k (B: block_context k) ainstrs,
+    exists E, plug__E E ainstrs = plug__B B ainstrs. 
+Proof with eauto.
+  introv.
+  induction B; simpl.
+  - (* B_nil *) 
+    exists (E_seq vals E_hole ainstrs0)... 
+  - (* B_cons *)
+    destruct IHB as (E & HE).
+    exists (E_seq vals (E_label n cont E) ainstrs0).
+    simpl. rewrite <- HE...
+Qed.
+
+
+(* Hmm... this seems not true for [E_seq] cases
+   If we need to use it eventually we will specialize it.
+ *)
+Lemma E_co_B: forall E ainstrs,
+    exists k (B: block_context k), plug__E E ainstrs = plug__B B ainstrs. 
+Proof with eauto.
+  introv.
+  induction E; simpl. 
+  - (* E_hole *)
+    exists 0 (B_nil [] []). simpl. rewrite app_nil_r...
+  - (* E_seq *)
+    destruct IHE as (k & B & HB).
+    admit.
+  - (* E_label *)
+    destruct IHE as (k & B & HB).
+    exists (k+1) (B_cons [] n cont B []). 
+    simpl. rewrite <- HB...
+Qed.
+
+
+
+
 (**************************************************************)
 (** ** Implicit Types - Copied from ExtendedTyping *)
 
@@ -741,31 +781,34 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction *)
 
-  (* | SS_nop :  *)
-  (*     ↑[Nop] ↪s [] *)
+  | SS_nop :
+      ↑[Nop] ↪s []
 
-  (* | SS_unreachable :  *)
-  (*     ↑[Unreachable] ↪s [Trap] *)
+  | SS_unreachable :
+      ↑[Unreachable] ↪s [Trap]
 
-  (* | SS_br : forall n instrs l (Bl: block_context l) vals, *)
-  (*     length vals = n -> *)
-  (*     [Label n instrs (plug__B Bl (⇈vals ++ ↑[Br l]))] ↪s ⇈vals ++ ↑instrs *)
+  | SS_br : forall n instrs l (Bl: block_context l) vals,
+(*    label_n {instr*}       B^l[val^n (br l)] end   ↪ val^n instr*             *)
+      length vals = n ->
+      [Label n instrs (plug__B Bl (⇈vals ++ ↑[Br l]))] ↪s ⇈vals ++ ↑instrs
 
-  (* | SS_br_if1 : forall c l, *)
-  (*     c <> I32.zero -> *)
-  (*     ↑[Const (i32 c); Br_if l]  ↪s ↑[Br l] *)
+  | SS_br_if1 : forall c l,
+      (* c <> I32.zero -> *)
+      I32.eqz c = false ->
+      ↑[Const (i32 c); Br_if l]  ↪s ↑[Br l]
 
-  (* | SS_br_if2 : forall c l, *)
-  (*     c = I32.zero -> *)
-  (*     ↑[Const (i32 c); Br_if l]  ↪s [] *)
+  | SS_br_if2 : forall c l,
+      (* c = I32.zero -> *)
+      I32.eqz c = true ->
+      ↑[Const (i32 c); Br_if l]  ↪s []
 
-  (* | SS_br_table__i : forall ls l__N l__i (i: nat), *)
-  (*     ls.[i] = Some l__i -> *)
-  (*     ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__i] *)
+  | SS_br_table__i : forall ls l__N l__i (i: nat),
+      ls.[i] = Some l__i ->
+      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__i]
 
-  (* | SS_br_table__N : forall ls l__N (i: nat), *)
-  (*     length ls <= i -> *)
-  (*     ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__N] *)
+  | SS_br_table__N : forall ls l__N (i: nat),
+      length ls <= i ->
+      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__N]
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction - Function Call Related *)
@@ -777,9 +820,9 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Block *)
 
-  (* | SS_block__exit : forall n m vals instrs, *)
-  (*     length vals = m -> *)
-  (*     [Label n instrs (⇈vals)]  ↪s ⇈vals *)
+  | SS_block__exit : forall n m vals instrs,
+      length vals = m ->
+      [Label n instrs (⇈vals)]  ↪s ⇈vals
 
 (* ----------------------------------------------------------------- *)
 (** *** Function Calls *)
@@ -841,38 +884,38 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
      sufficient number of vals from the well-type premise. 
    *)
                                       
-  (* | SC_block : forall S F m n ts1 ts2 bt instrs vals, *)
-  (*     m = length ts1 -> *)
-  (*     n = length ts2 -> *)
-  (*     length vals = m -> *)
-  (*     expand F bt = Some (ts1 --> ts2) -> *)
-  (*     (S, F, ⇈vals ++ ↑[Block bt instrs]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs)]) *)
+  | SC_block : forall S F m n ts1 ts2 bt instrs vals,
+      m = length ts1 ->
+      n = length ts2 ->
+      length vals = m ->
+      expand F bt = Some (ts1 --> ts2) ->
+      (S, F, ⇈vals ++ ↑[Block bt instrs]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs)])
 
-  (* | SC_loop : forall S F m n ts1 ts2 bt instrs vals, *)
-  (*     m = length ts1 -> *)
-  (*     n = length ts2 -> *)
-  (*     length vals = m -> *)
-  (*     expand F bt = Some (ts1 --> ts2) -> *)
-  (*     (S, F, ⇈vals ++ ↑[Loop bt instrs]) ↪ (S, F, [Label n [Loop bt instrs] (⇈vals ++ ↑instrs)]) *)
+  | SC_loop : forall S F m n ts1 ts2 bt instrs vals,
+      m = length ts1 ->
+      n = length ts2 ->
+      length vals = m ->
+      expand F bt = Some (ts1 --> ts2) ->
+      (S, F, ⇈vals ++ ↑[Loop bt instrs]) ↪ (S, F, [Label n [Loop bt instrs] (⇈vals ++ ↑instrs)])
 
   (* The original paper definition (and Isabelle) simply desugar [if] into [block]
      But here we faithfully represent the spec and made the rule explicit. *)
 
-  (* | SC_if1 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals, *)
-  (*     m = length ts1 -> *)
-  (*     n = length ts2 -> *)
-  (*     length vals = m -> *)
-  (*     c <> I32.zero -> *)
-  (*     expand F bt = Some (ts1 --> ts2) -> *)
-  (*     (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs1)]) *)
+  | SC_if1 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
+      m = length ts1 ->
+      n = length ts2 ->
+      length vals = m ->
+      c <> I32.zero ->
+      expand F bt = Some (ts1 --> ts2) ->
+      (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs1)])
 
-  (* | SC_if2 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals, *)
-  (*     m = length ts1 -> *)
-  (*     n = length ts2 -> *)
-  (*     length vals = m -> *)
-  (*     c = I32.zero -> *)
-  (*     expand F bt = Some (ts1 --> ts2) -> *)
-  (*     (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs2)]) *)
+  | SC_if2 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
+      m = length ts1 ->
+      n = length ts2 ->
+      length vals = m ->
+      c = I32.zero ->
+      expand F bt = Some (ts1 --> ts2) ->
+      (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs2)])
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction - Function Call Related *)

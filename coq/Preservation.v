@@ -403,7 +403,8 @@ Proof with auto.
       splits; injection Heq; auto.
 Qed.
 
-(* By introducing the [Fixpoint unsnoc] we add some computing power for [simpl] to perform. *)
+(* By introducing the [Fixpoint unsnoc] we add some computational power
+   that [simpl] can perform later. *)
 Lemma eq_snoc_app_split_unsnoc: forall {X:Type} (ys xs': list X) (x: X),
     ys = xs' ++ [x] ->
     unsnoc ys = Some (xs', x).
@@ -428,7 +429,7 @@ Ltac invert_eq_snoc_app_compute Heq :=
 (* Inverts when the snoc-append equation does not hold
    This is for discharging cases that are invalid.
  *)
-Ltac invert_eq_snoc_app_discharge Heq cdr car :=
+Ltac invert_eq_snoc_app_contra Heq cdr car :=
     try solve [
           apply eq_unsnoc_car_eq in Heq;
           simpl in Heq;
@@ -437,10 +438,15 @@ Ltac invert_eq_snoc_app_discharge Heq cdr car :=
         ].
 
 (* A powerful pack of both discharging and computing *)
-Ltac invert_eq_snoc_app Heq cdr car :=
-  invert_eq_snoc_app_discharge Heq cdr car;
+Ltac invert_eq_snoc_app_pack Heq cdr car :=
+  invert_eq_snoc_app_contra Heq cdr car;
   invert_eq_snoc_app_compute Heq.
 
+(* After testing, we found the [invert_eq_snoc_app_compute] ltac can
+   also solve the contradictive cases. so we simply do an alias 
+ *)
+Ltac invert_eq_snoc_app Heq :=
+  invert_eq_snoc_app_compute Heq.
 
 Module InvertEqSnocAppTest.
 
@@ -450,7 +456,7 @@ Module InvertEqSnocAppTest.
   Proof.
     introv Heq.
     dup.
-    - invert_eq_snoc_app_discharge Heq cdr 3.  (* works! *)
+    - invert_eq_snoc_app_contra Heq cdr 3.  (* works! *)
     - invert_eq_snoc_app_compute Heq.  (* also works! *)
   Qed.
 
@@ -460,7 +466,7 @@ Module InvertEqSnocAppTest.
   Proof.
     introv Heq.
     dup.
-    - invert_eq_snoc_app_discharge Heq cdr 3.
+    - invert_eq_snoc_app_contra Heq cdr 3.
     - invert_eq_snoc_app_compute Heq. 
   Qed.
 
@@ -470,9 +476,9 @@ Module InvertEqSnocAppTest.
   Proof.
     introv Heq.
     dup.
-    - invert_eq_snoc_app_discharge Heq cdr 3. (* doesn't work *)
+    - invert_eq_snoc_app_contra Heq cdr 3. (* doesn't work *)
       invert_eq_snoc_app_compute Heq. reflexivity.  (* works *)
-    - invert_eq_snoc_app Heq cdr 3. reflexivity.
+    - invert_eq_snoc_app Heq. reflexivity.
   Qed.
 
 End InvertEqSnocAppTest.
@@ -504,6 +510,45 @@ Proof with auto.
     split; try subst; assumption. 
 Qed.
 
+(* As all VAIS rule, this lemma merge the weakening rules *)
+Lemma vals_vais: forall S C vals ts1 ts2, 
+    (S,C) ⊢a* ⇈vals ∈ ts1 --> ts2 ->
+    ts2 = ts1 ++ map type_of vals.
+Proof with auto.
+  introv HVAIS.
+  dependent induction HVAIS;
+    rename x into Heq;
+    symmetry in Heq.
+
+  - (* VAIS_empty *)
+    apply map_eq_nil in Heq;
+      apply map_eq_nil in Heq;
+      subst;
+      simpl.
+    rewrite app_nil_r...
+  - (* VAIS_snoc *)
+    rename H into HVAI__N.
+    apply map_eq_snoc_app_split in Heq.
+    destruct Heq as (instrs & instr__N & Heq & Hinstrs & Hinstr__N).
+    apply map_eq_snoc_app_split in Heq.
+    destruct Heq as (vals' & val__N & Heq & Hvals' & Hval__N).
+
+    rewrite <- Hinstrs in *.
+    rewrite <- Hinstr__N in *.
+    rewrite <- Hvals' in *.
+    rewrite <- Hval__N in *.
+
+    inverts HVAI__N as HVI__N.
+    inverts HVI__N.
+
+    asserts_rewrite (map type_of vals = map type_of vals' ++ [type_of val__N]).
+    + rewrite -> Heq. apply map_app.
+    + rewrite app_assoc.
+      apply snoc_app_inj.
+      split...
+      ++ eapply (IHHVAIS S C vals' ts1 ts0)...
+         rewrite app_nil_r...
+Qed.
 
 Lemma vals_typing_eq: forall S C vals rt, 
     (S,C) ⊢a* ⇈vals ∈ [] --> rt ->
@@ -538,6 +583,18 @@ Proof with auto.
       split...
       ++ rewrite <- (app_nil_r ts0). 
          eapply (IHHVAIS S C vals' (ts0 ++ []))...
+Qed.
+
+
+(* ================================================================= *)
+(** ** Lemma - Snoc app 2 i.e. (xs' ++ [x1; x2]) *)
+
+Lemma snoc_app2_as_snoc_app: forall {X:Type} (ys xs': list X) (x1 x2: X),
+    ys = xs' ++ [x1; x2] <->
+    ys = (xs' ++ [x1]) ++ [x2].
+Proof with auto.
+  split; intros H; subst; 
+    rewrite <- app_assoc; simpl...
 Qed.
 
 
@@ -665,6 +722,8 @@ Qed.
 (* ================================================================= *)
 (** ** Lemma - Normal Form *)
 
+(* TODO: Move relational thing into Shared *)
+
 Definition relation (X: Type) := X -> X -> Prop.
 
 Definition normal_form {X : Type} (R : relation X) (x : X) : Prop :=
@@ -676,7 +735,7 @@ Proof.
   unfold normal_form. introv. intros H.
   inverts H as. intros ainstrs' HSC.
   inverts HSC; (* will name evidence as H0, H... *)
-  (* TODO : extract Ltac similar to [invert_eq_snoc_app_compute] *)
+  (* TODO : extract Ltac similar to [invert_eq_snoc_app] for vals *)
   (* Drop - no condition, H0 is the Heq *)
   try (rename H0 into H);  
   (* Numerics & Select, H0 for some condition, H for the Heq *)
@@ -720,6 +779,23 @@ Proof.
     inverts H.
 Qed.
 
+Lemma plug_B_ϵ : forall k (B : block_context k) ainstrs, 
+    plug__B B ainstrs = [] ->     (* N.B. not vice versa *)
+    ainstrs = [].
+Proof.
+  introv H.
+  induction B.
+  - (* B_nil *)
+    simpl in *.
+    apply app_eq_nil in H. destruct H.
+    apply app_eq_nil in H0. destruct H0.
+    assumption.
+  - (* B_cons *)
+    simpl in *. 
+    apply app_eq_nil in H. destruct H.
+    inverts H0.
+Qed.
+
 (* snoc a [val] should be either ill-formed or, normally, all [val] *)
 Lemma ainstrs_snoc_app_val_normal_form_step_simple: forall ainstrs val, 
     normal_form step_simple (ainstrs ++ ⇈[val]).
@@ -727,8 +803,8 @@ Proof.
   unfold normal_form. introv. intros H.
   inverts H as. intros ainstrs' HSC.
   inverts HSC;
-  try invert_eq_snoc_app_compute H;
-  try invert_eq_snoc_app_compute H0.
+  try invert_eq_snoc_app H;
+  try invert_eq_snoc_app H0.
 Qed.
       
 Lemma instrs_snoc_app_val_normal_form_step_simple: forall instrs val, 
@@ -743,17 +819,25 @@ Qed.
 Lemma S_F_ϵ_is_normal_form : forall S F S' F',
   ~ exists ainstrs', (S, F, []) ↪ (S', F', ainstrs').
 Proof with auto.
-  introv. intros H.
-  inverts H as. intros ainstrs' HSC.
+  introv. intros HS.
+  inverts HS as. intros ainstrs' HSC.
 
   (* want both inversion and induction? [remember] *)
   remember (S, F, []) as S_F_ϵ.     
 
   induction HSC;
-    inverts HeqS_F_ϵ as.
+    inverts HeqS_F_ϵ as;
 
-  - (* SC_simple *)
-    inversion H.
+  (* SC_simple *)
+  try (inversion H);
+
+  (* SC_block *) (* SC_loop *)
+  try (intros Heq; symmetry in Heq; invert_eq_snoc_app Heq);
+
+  (* SC_if1 *) (* SC_if2 *)
+  try (intros Heq; symmetry in Heq;
+       rewrite snoc_app2_as_snoc_app in Heq;
+       invert_eq_snoc_app Heq).
 
   - (* SC_E *)
     intros HE.
@@ -768,211 +852,7 @@ Qed.
 
 
 (* ================================================================= *)
-(** ** Lemma - Unproved/Unused *)
-
-
-
-
-(* ================================================================= *)
-(** ** Preservation - VAIS_snoc -> SC_simple*)
-
-
-Lemma preservation_SC_simple : forall S C ainstrs ainstr__N ainstrs' ts0 ts2 ts3,
-      (S,C) ⊢a* ainstrs ∈ [] --> (ts0 ++ ts2)  -> (* [HVAIS] *)
-      (S,C) ⊢a  ainstr__N ∈ ts2 --> ts3 ->          (* [HVAI__N] *)
-      ainstrs ++ [ainstr__N] ↪s ainstrs' ->        (* [HSS] *)
-(* -------------------------------------------------------------- *)
-      (S,C) ⊢a* ainstrs' ∈ [] --> (ts0 ++ ts3).
-Proof with eauto.
-  introv HVAIS HVAI__N HSS.
-  inverts HVAI__N as.
-
-  - (* VAI_instr *)
-    intros HVI__N.
-    inverts HVI__N.
-
-    + (* VI_const *)
-      exfalso.
-      simpl in HSS.
-      apply (ainstrs_snoc_app_val_normal_form_step_simple ainstrs val).
-      exists ainstrs'...
-
-    + (* VI_unop *)
-      inverts keep HSS as Heval Heq;
-        try invert_eq_snoc_app Heval ainstrs (Plain (Unop op));
-        try invert_eq_snoc_app Heq ainstrs (Plain (Unop op)).
-
-      ++ (* [SS_unop__some] *)
-        rewrite <- (app_nil_l (↑[Const val])).
-        apply VAIS_snoc with (ts := []). 
-
-        +++ (* [] *)
-          specialize (vals_typing_eq S C [val1] _ HVAIS) as Heq; simpl in Heq.
-          destruct (snoc_app_eq_unit _ _ _ Heq) as (Htype_of & Heqts0).
-          subst. constructor.
-
-        +++ (* ↑[Const val] *)
-          apply VAI_instr.
-          apply VI_const.
-          apply eval_unop_preserve_type in Heval...
-
-      ++ (* [SS_unop__none] *)
-        rewrite <- (app_nil_l ([Trap])).
-        apply VAIS_snoc with (ts := []). 
-
-        +++ (* [] *)
-          specialize (vals_typing_eq S C [val1] _ HVAIS) as Heq; simpl in Heq.
-          destruct (snoc_app_eq_unit _ _ _ Heq) as (Htype_of & Heqts0).
-          subst. constructor.
-
-        +++ (* [Trap] *)
-          apply VAI_trap.
-
-    + (* VI_binop *)
-      inverts keep HSS as Heval Heq; 
-        try invert_eq_snoc_app Heval ainstrs (Plain (Binop op));
-        try invert_eq_snoc_app Heq ainstrs (Plain (Binop op)).
-
-      ++ (* [SS_binop__some] *)
-        rewrite <- (app_nil_l (↑[Const val])).
-        apply VAIS_snoc with (ts := []).
-
-        +++ (* [] *)
-          specialize (vals_typing_eq S C [val1; val2] _ HVAIS) as Heq; simpl in Heq.
-          destruct (snoc_app_eq_same_len ts0 [type_of op; type_of op] [type_of val1; type_of val2])... 
-          subst. constructor.
-
-        +++ (* ↑[Const val] *)
-          apply VAI_instr.
-          apply VI_const.
-          apply eval_binop_preserve_type in Heval...
-
-      ++ (* [SS_binop__none] *)
-        rewrite <- (app_nil_l ([Trap])).
-        apply VAIS_snoc with (ts := []). (* We know [ts] from [Const val]*)
-
-        +++ (* [] *)
-          specialize (vals_typing_eq S C [val1; val2] _ HVAIS) as Heq; simpl in Heq.
-          destruct (snoc_app_eq_same_len ts0 [type_of op; type_of op] [type_of val1; type_of val2])... 
-          subst. constructor.
-
-        +++ (* [Trap] *)
-          apply VAI_trap.
-
-    + (* VI_testop *)
-      inverts keep HSS as Heval Heq; 
-        try invert_eq_snoc_app Heval ainstrs (Plain (Testop op));
-        try invert_eq_snoc_app Heq ainstrs (Plain (Testop op)).
-
-      ++ (* [SS_testop] *)
-        rewrite <- (app_nil_l (↑[Const b])).
-        apply VAIS_snoc with (ts := []).
-
-        +++ (* [] *)
-          specialize (vals_typing_eq S C [val1] _ HVAIS) as Heq; simpl in Heq.
-          destruct (snoc_app_eq_unit _ _ _ Heq)... 
-          subst. constructor.
-
-        +++ (* ↑[Const b] *)
-          apply VAI_instr.
-          apply VI_const.
-          simpl... 
-
-    + (* VI_relop *)
-      inverts keep HSS as Heval Heq; 
-        try invert_eq_snoc_app Heval ainstrs (Plain (Relop op));
-        try invert_eq_snoc_app Heq ainstrs (Plain (Relop op)).
-
-      ++ (* [SS_testop] *)
-        rewrite <- (app_nil_l (↑[Const b])).
-        apply VAIS_snoc with (ts := []).
-
-        +++ (* [] *)
-          specialize (vals_typing_eq S C [val1; val2] _ HVAIS) as Heq; simpl in Heq.
-          destruct (snoc_app_eq_same_len ts0 [type_of op; type_of op] [type_of val1; type_of val2])... 
-          subst. constructor.
-
-        +++ (* ↑[Const b] *)
-          apply VAI_instr.
-          apply VI_const.
-          simpl... (* ??? *) (* apply eval_relop_preserve_type in Heval... *)
-
-    + (* VI_drop *)
-      inverts keep HSS; 
-        try invert_eq_snoc_app H0 ainstrs (Plain Drop);
-        try invert_eq_snoc_app H ainstrs (Plain Drop).
-
-      ++ (* [SS_drop] *)
-        specialize (vals_typing_eq S C [val] _ HVAIS) as Heq; simpl in Heq.
-        destruct (snoc_app_eq_unit _ _ _ Heq)... 
-        subst. constructor.
-
-    + (* VI_select *)
-      inverts keep HSS; 
-        try invert_eq_snoc_app H0 ainstrs (Plain Select);
-        try invert_eq_snoc_app H ainstrs (Plain Select).
-
-      ++ (* [SS_select1] *)
-        rewrite <- (app_nil_l (↑[Const val1])).
-        apply VAIS_snoc with (ts := []);
-          specialize (vals_typing_eq S C [val1; val2; (i32 c)] _ HVAIS) as Heq;
-          simpl in Heq;
-          destruct (snoc_app_eq_same_len ts0 [t; t; T_i32] [type_of val1; type_of val2; T_i32])... 
-
-        +++ (* [] *)
-          subst. constructor.
-
-        +++ (* ↑[Const val1] *)
-          inverts H1.
-          apply VAI_instr.
-          apply VI_const.
-          simpl... 
-
-      ++ (* [SS_select2] *)
-        rewrite <- (app_nil_l (↑[Const val2])).
-        apply VAIS_snoc with (ts := []);
-          specialize (vals_typing_eq S C [val1; val2; (i32 c)] _ HVAIS) as Heq;
-          simpl in Heq;
-          destruct (snoc_app_eq_same_len ts0 [t; t; T_i32] [type_of val1; type_of val2; T_i32])... 
-
-        +++ (* [] *)
-          subst. constructor.
-
-        +++ (* ↑[Const val2] *)
-          inverts H1.
-          apply VAI_instr.
-          apply VI_const.
-          simpl... 
-
-  - (* VAI_trap *)
-    (* Trap can't take a simple step, so all discharged *)
-    inverts keep HSS;
-      try invert_eq_snoc_app H0 ainstrs (Trap);
-      try invert_eq_snoc_app H ainstrs (Trap).
-
-Qed.
-
-
-(* Playing with the SC_E proof *)
-Theorem preservation : forall S T S' T',
-    $(S, T) ↪ $(S', T') ->
-    forall rt, ⊢c (S, T) ∈ rt ->
-    ⊢c (S', T') ∈ rt /\ ⊢S S ⪯ S'.
-Proof with eauto.
-  introv HSC.
-  destruct T as [F ainstrs].
-  destruct T' as [F' ainstrs'].
-  simpl in HSC.
-  dependent induction HSC; intros.
-  - admit.
-  -
-Abort.    
-
-
-
-(* ================================================================= *)
-(** ** Lemma - SC_E related... *)
-
+(** ** Lemma - VAIS append  *)
 
 (*
    ts1 --> [  ainstrs0  |  ainstrs1 ] --> ts3
@@ -1048,6 +928,418 @@ Proof with eauto.
     apply vais_app. exists ts3. split...
 Qed.
 
+Lemma vais_ts0_ϵ: forall S C ts0,
+        (S, C) ⊢a* [] ∈ [] --> (ts0 ++ []) ->
+        ts0 = [].
+Proof with eauto.
+  introv HVAIS.
+  inverts HVAIS.
+  ++ symmetry in H3. apply app_eq_nil in H3. destruct H3...
+  ++ symmetry in H1. invert_eq_snoc_app H1.
+Qed.
+      
+
+(* ================================================================= *)
+(** ** Lemma - Unproved/Unused *)
+
+            
+Lemma vais_singleton: forall S C ainstr ts1 ts2,
+        (S, C) ⊢a* [ainstr] ∈ ts1 --> ts2 <->
+        (S, C) ⊢a ainstr ∈ ts1 --> ts2.
+Proof with eauto.
+  split. 
+  (* -> *)
+  - introv HVAIS.
+    inverts HVAIS as HVAIS' HVAI__N Heq.
+    rewrite <- app_nil_l in Heq.
+    apply snoc_app_inj in Heq.
+    destruct Heq; subst.
+    inverts HVAIS'.
+    + skip.
+Admitted.
+
+
+
+(* ================================================================= *)
+(** ** Preservation - VAIS_snoc -> SC_simple*)
+
+
+Lemma preservation_SC_simple_gen : forall S C ainstrs ainstr__N ainstrs' ts0 ts1 ts2 ts3,
+      (S,C) ⊢a* ainstrs ∈ ts1 --> (ts0 ++ ts2)  -> (* [HVAIS] *)
+      (S,C) ⊢a  ainstr__N ∈ ts2 --> ts3 ->          (* [HVAI__N] *)
+      ainstrs ++ [ainstr__N] ↪s ainstrs' ->        (* [HSS] *)
+(* -------------------------------------------------------------- *)
+      (S,C) ⊢a* ainstrs' ∈ ts1 --> (ts0 ++ ts3).
+Proof with eauto.
+  introv HVAIS HVAI__N HSS.
+  inverts HVAI__N as.
+
+  - (* VAI_instr *)
+    intros HVI__N.
+    inverts HVI__N as;
+
+    (* cases not could not take a simple step
+       - VI_const
+       - VI_block
+       - VI_loop
+       - VI_if
+       - VI_br
+     *)
+    try solve [
+          inverts keep HSS; 
+          try invert_eq_snoc_app H0;
+          try invert_eq_snoc_app H].
+
+    + (* VI_unop *)
+      inverts keep HSS as Heval Heq;
+        try invert_eq_snoc_app Heval;
+        try invert_eq_snoc_app Heq. 
+
+      ++ (* [SS_unop__some] *)
+        rewrite <- (app_nil_l (↑[Const val])).
+        apply VAIS_snoc with (ts := []). 
+
+        +++ (* [] *)
+
+
+
+          apply vals_vais with (vals := [val1]) in HVAIS. simpl in HVAIS.
+          apply snoc_app_inj in HVAIS. destruct HVAIS as (Heqts0 & Htypeof).
+          subst. rewrite app_nil_r. constructor.
+
+        +++ (* ↑[Const val] *)
+          apply VAI_instr.
+          apply VI_const.
+          apply eval_unop_preserve_type in Heval...
+Admitted. 
+
+
+Lemma preservation_SC_simple : forall S C ainstrs ainstr__N ainstrs' ts0 ts2 ts3,
+      (S,C) ⊢a* ainstrs ∈ [] --> (ts0 ++ ts2)  -> (* [HVAIS] *)
+      (S,C) ⊢a  ainstr__N ∈ ts2 --> ts3 ->          (* [HVAI__N] *)
+      ainstrs ++ [ainstr__N] ↪s ainstrs' ->        (* [HSS] *)
+(* -------------------------------------------------------------- *)
+      (S,C) ⊢a* ainstrs' ∈ [] --> (ts0 ++ ts3).
+Proof with eauto.
+  introv HVAIS HVAI__N HSS.
+  inverts HVAI__N as.
+
+  - (* VAI_instr *)
+    intros HVI__N.
+    inverts HVI__N as;
+
+    (* cases not could not take a simple step
+       - VI_const
+       - VI_block
+       - VI_loop
+       - VI_if
+       - VI_br
+     *)
+    try solve [
+          inverts keep HSS; 
+          try invert_eq_snoc_app H0;
+          try invert_eq_snoc_app H].
+
+    + (* VI_unop *)
+      inverts keep HSS as Heval Heq;
+        try invert_eq_snoc_app Heval;
+        try invert_eq_snoc_app Heq. 
+
+      ++ (* [SS_unop__some] *)
+        rewrite <- (app_nil_l (↑[Const val])).
+        apply VAIS_snoc with (ts := []). 
+
+        +++ (* [] *)
+          specialize (vals_typing_eq S C [val1] _ HVAIS) as Heq; simpl in Heq.
+          destruct (snoc_app_eq_unit _ _ _ Heq) as (Htype_of & Heqts0).
+          subst. constructor.
+
+        +++ (* ↑[Const val] *)
+          apply VAI_instr.
+          apply VI_const.
+          apply eval_unop_preserve_type in Heval...
+
+      ++ (* [SS_unop__none] *)
+        rewrite <- (app_nil_l ([Trap])).
+        apply VAIS_snoc with (ts := []). 
+
+        +++ (* [] *)
+          specialize (vals_typing_eq S C [val1] _ HVAIS) as Heq; simpl in Heq.
+          destruct (snoc_app_eq_unit _ _ _ Heq) as (Htype_of & Heqts0).
+          subst. constructor.
+
+        +++ (* [Trap] *)
+          apply VAI_trap.
+
+
+    + (* VI_binop *)
+      inverts keep HSS as Heval Heq; 
+        try invert_eq_snoc_app Heval;
+        try invert_eq_snoc_app Heq. 
+
+      ++ (* [SS_binop__some] *)
+        rewrite <- (app_nil_l (↑[Const val])).
+        apply VAIS_snoc with (ts := []).
+
+        +++ (* [] *)
+          specialize (vals_typing_eq S C [val1; val2] _ HVAIS) as Heq; simpl in Heq.
+          destruct (snoc_app_eq_same_len ts0 [type_of op; type_of op] [type_of val1; type_of val2])... 
+          subst. constructor.
+
+        +++ (* ↑[Const val] *)
+          apply VAI_instr.
+          apply VI_const.
+          apply eval_binop_preserve_type in Heval...
+
+      ++ (* [SS_binop__none] *)
+        rewrite <- (app_nil_l ([Trap])).
+        apply VAIS_snoc with (ts := []). (* We know [ts] from [Const val]*)
+
+        +++ (* [] *)
+          specialize (vals_typing_eq S C [val1; val2] _ HVAIS) as Heq; simpl in Heq.
+          destruct (snoc_app_eq_same_len ts0 [type_of op; type_of op] [type_of val1; type_of val2])... 
+          subst. constructor.
+
+        +++ (* [Trap] *)
+          apply VAI_trap.
+
+
+    + (* VI_testop *)
+      inverts keep HSS as Heval Heq; 
+        try invert_eq_snoc_app Heval;
+        try invert_eq_snoc_app Heq. 
+
+      ++ (* [SS_testop] *)
+        rewrite <- (app_nil_l (↑[Const b])).
+        apply VAIS_snoc with (ts := []).
+
+        +++ (* [] *)
+          specialize (vals_typing_eq S C [val1] _ HVAIS) as Heq; simpl in Heq.
+          destruct (snoc_app_eq_unit _ _ _ Heq)... 
+          subst. constructor.
+
+        +++ (* ↑[Const b] *)
+          apply VAI_instr.
+          apply VI_const.
+          simpl... 
+
+
+    + (* VI_relop *)
+      inverts keep HSS as Heval Heq; 
+        try invert_eq_snoc_app Heval;
+        try invert_eq_snoc_app Heq. 
+
+      ++ (* [SS_testop] *)
+        rewrite <- (app_nil_l (↑[Const b])).
+        apply VAIS_snoc with (ts := []).
+
+        +++ (* [] *)
+          specialize (vals_typing_eq S C [val1; val2] _ HVAIS) as Heq; simpl in Heq.
+          destruct (snoc_app_eq_same_len ts0 [type_of op; type_of op] [type_of val1; type_of val2])... 
+          subst. constructor.
+
+        +++ (* ↑[Const b] *)
+          apply VAI_instr.
+          apply VI_const.
+          simpl... (* ??? *) (* apply eval_relop_preserve_type in Heval... *)
+
+
+    + (* VI_drop *)
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0;
+        try invert_eq_snoc_app H.
+
+      ++ (* [SS_drop] *)
+        specialize (vals_typing_eq S C [val] _ HVAIS) as Heq; simpl in Heq.
+        destruct (snoc_app_eq_unit _ _ _ Heq)... 
+        subst. constructor.
+
+
+    + (* VI_select *)
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0;
+        try invert_eq_snoc_app H.
+
+      ++ (* [SS_select1] *)
+        rewrite <- (app_nil_l (↑[Const val1])).
+        apply VAIS_snoc with (ts := []);
+
+          specialize (vals_typing_eq S C [val1; val2; (i32 c)] _ HVAIS) as Heq; simpl in Heq;
+          destruct (snoc_app_eq_same_len ts0 [t; t; T_i32] [type_of val1; type_of val2; T_i32])... 
+
+        +++ (* [] *)
+          subst. constructor.
+
+        +++ (* ↑[Const val1] *)
+          inverts H1.
+          apply VAI_instr.
+          apply VI_const.
+          simpl... 
+
+      ++ (* [SS_select2] *)
+        rewrite <- (app_nil_l (↑[Const val2])).
+        apply VAIS_snoc with (ts := []);
+
+          specialize (vals_typing_eq S C [val1; val2; (i32 c)] _ HVAIS) as Heq; simpl in Heq;
+          destruct (snoc_app_eq_same_len ts0 [t; t; T_i32] [type_of val1; type_of val2; T_i32])... 
+
+        +++ (* [] *)
+          subst. constructor.
+
+        +++ (* ↑[Const val2] *)
+          inverts H1.
+          apply VAI_instr.
+          apply VI_const.
+          simpl... 
+
+
+    + (* VI_nop *)
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0;
+        try invert_eq_snoc_app H.
+      apply HVAIS.
+
+
+    + (* VI_unreachable *)
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0;
+        try invert_eq_snoc_app H.
+
+      inverts HVAIS as Heq. 
+      ++ (* VAIS_empty *)
+        symmetry in Heq.
+        apply app_eq_nil in Heq.
+        destruct Heq; subst.
+        rewrite <- (app_nil_l ([Trap])).
+        apply VAIS_snoc with (ts := []); constructor.
+      ++ (* VAIS_snoc *)
+        symmetry in H1.
+        invert_eq_snoc_app_compute H1.
+
+    + (* VI_br_if *)
+      intros Hl0.
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0;
+        try invert_eq_snoc_app H;
+
+          specialize (vals_typing_eq S C [(i32 c)] _ HVAIS) as Heq; simpl in Heq;
+          rewrite app_assoc in Heq;
+          destruct (snoc_app_eq_same_len (ts0++ts3) [T_i32] [T_i32]); eauto;
+          apply app_eq_nil in H; destruct H; subst.
+
+      ++ (* [SS_br_if1 ↪ br] *)
+        rewrite <- (app_nil_l (↑[Br l0])).
+        eapply VAIS_snoc with (ts := []).
+        +++ (* [] *) eauto.
+        +++ (* [Br l0] *)
+          eapply VAI_instr.
+          eapply VI_br with (ts1 := [])...
+        
+      ++ (* [SS_br_if2 ↪ ϵ]  *)
+        eauto.
+
+
+    + (* VI_br_table *)
+      intros Hls Hl__N.
+      inverts keep HSS; 
+        try invert_eq_snoc_app H0;
+        try invert_eq_snoc_app H;
+
+          remember (nat_to_i32 i) as c;
+          specialize (vals_typing_eq S C [(i32 c)] _ HVAIS) as Heq; simpl in Heq;
+          rewrite app_assoc in Heq; rewrite app_assoc in Heq;
+          destruct (snoc_app_eq_same_len ((ts0 ++ ts1) ++ ts) [T_i32] [T_i32]); eauto;
+          apply app_eq_nil in H; destruct H; 
+            apply app_eq_nil in H; destruct H;
+              subst.
+
+      ++ (* [SS_br_table__i] *)
+        rewrite <- (app_nil_l (↑[Br l__i])).
+        eapply VAIS_snoc with (ts := []).
+        +++ (* [] *) eauto.
+        +++ (* [Br l__i] *)
+          eapply VAI_instr.
+          eapply VI_br with (ts1 := [])...
+          eapply Forall_forall with (x := l__i) in Hls...
+          eapply nth_error_In...
+
+      ++ (* [SS_br_table__N] *)
+        rewrite <- (app_nil_l (↑[Br l__N])).
+        eapply VAIS_snoc with (ts := []).
+        +++ (* [] *) eauto.
+        +++ (* [Br l__N] *)
+          eapply VAI_instr.
+          eapply VI_br with (ts1 := [])...
+
+
+  - (* VAI_label *)
+    inverts keep HSS;
+      try invert_eq_snoc_app H0; 
+      try invert_eq_snoc_app H.
+
+
+  - (* VAI_label *)
+    introv HVAIS__cont HVAIS__rest.
+    (*
+       [HSS :       ainstrs ++ [Label (length ts1) instrs0 ainstrs0] ↪s ainstrs'
+       [HVAIS__cont : (S, C) ⊢a* ↑ instrs0 ∈ ts1 --> ts3
+       [HVAIS__rest : (S, C,labels ts1) ⊢a* ainstrs0 ∈ [] --> ts3
+      -----------------------------------------------------------------
+       [(S, C) ⊢a* ainstrs' ∈ [] --> (ts0 ++ ts3)
+    *)
+    inverts keep HSS;
+      try invert_eq_snoc_app H0; 
+      try invert_eq_snoc_app H;
+      
+      apply vais_ts0_ϵ in HVAIS;
+      subst ts0; simpl in *;
+
+      remember (length ts1) as n.
+
+    + (* SS_br *)
+      rename H2 into Heqn2. 
+      (*
+        HSS : [Label n instrs0 (plug__B Bl (⇈vals ++ [Plain (Br l0)]))] ↪s ⇈vals ++ ↑instrs0
+        ↑instrs0 : ts1 --> ts3
+        n = length ts1 = length vals 
+
+        ⇈vals    : [] --> ts1      (* how to connect `C.labels[l] = t*` and `br take vals:t*`?  *)
+      ---------------------------------------------------------------------------------------------
+        ⇈vals ++ ↑instrs0 : [] --> ts3
+
+      *)
+      apply vais_app.
+      exists ts1. split...
+      (* ⇈vals : [] --> ts1 *)
+      admit.
+
+    + (* SS_block__exit *)
+      (* we need a context weakening! *)
+      admit.
+
+
+Admitted.
+
+(* Playing with the SC_E proof *)
+Theorem preservation : forall S T S' T',
+    $(S, T) ↪ $(S', T') ->
+    forall rt, ⊢c (S, T) ∈ rt ->
+    ⊢c (S', T') ∈ rt /\ ⊢S S ⪯ S'.
+Proof with eauto.
+  introv HSC.
+  destruct T as [F ainstrs].
+  destruct T' as [F' ainstrs'].
+  simpl in HSC.
+  dependent induction HSC; intros.
+  - admit.
+  -
+Abort.    
+
+
+
+(* ================================================================= *)
+(** ** Lemma - SC_E related... *)
+
 
 (*
       E[ainstrs] : ts1 --> ts2
@@ -1069,6 +1361,10 @@ Proof with eauto.
     apply IHE in HVAIS1 as IH.
     destruct IH as (ts3' & ts4' & HVAIS')...
   - (* E_label *)
+    inverts HVAIS as HVAIS' HVAI Heq. 
+    symmetry in Heq; invert_eq_snoc_app Heq.
+    inverts HVAI as HVAIS__cont HVAIS__E.
+    (* need context weakening *)
     (* need to reenable VAI_label and it's just two inversions away. *)
     admit.
 Admitted.
@@ -1090,7 +1386,7 @@ Proof with eauto.
   introv Hin Hin' Hplug.
   dependent induction E; simpl in *. 
   - (* E_hole *)
-    admit. (* need to show typing is deterministic *)
+    admit. (* need to show typing is unique *)
   - (* E_seq *)
     apply vais_app3 in Hplug.
     destruct Hplug as (ts3' & ts4' & H0 & H1 & H2).
@@ -1110,8 +1406,8 @@ Admitted.
 Lemma plug_E_strong_same : forall S C S' C' E ainstrs ainstrs' ts1 ts3 ts4 ts6,
      (S, C) ⊢a*          ainstrs   ∈ ts3 --> ts4 ->
      (S, C) ⊢a* (plug__E E ainstrs)  ∈ ts1 --> ts6 ->
-   (S', C') ⊢a*          ainstrs'  ∈ ts3 --> ts4 ->
-   (S', C') ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts6.
+    (S', C) ⊢a*          ainstrs'  ∈ ts3 --> ts4 ->
+    (S', C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts6.
 Proof with eauto.
   induction E; introv H34 H16 H34'.
   - admit.
@@ -1121,7 +1417,7 @@ Proof with eauto.
     specialize (IHE ainstrs0 ainstrs' ts2 ts3 ts4 ts5 H34 H25 H34') as H25'...
     apply vais_app3.
     exists ts2 ts5. 
-    splits.
+    splits. (* Instead, we probably want to show store extension preserve types *)
     + (* vals *) skip.
     + (* hole *) apply H25'.
     + (* rest *) 
@@ -1133,7 +1429,7 @@ Admitted.
   introv H25 H16 H25'. gen S C S' C'.
   induction E; intros; simpl in *.
   - (* E_hole *)
-    admit. (* need to show typing is deterministic *)
+    admit. (* need to show typing is unique *)
   - (* E_seq *)
     apply vais_app3 in H16 as Happ3.
     destruct Happ3 as (ts3 & ts4 & H23 & H34 & H45). 
@@ -1158,28 +1454,169 @@ Admitted.
 *)
 
 
-(* generailized preservation *)
+(* Generailized Preservation
 
+   The soundness stating in the spec - appendix - soundness was "mis-leading" by being
+   too specific to the top-level cases and could not give us a induction hypothesis
+   as general as we want to cover all cases.
+
+   So we need a more generalized valid_config (might furthur clean up to a Inductive)
+   for now we explicitliy state the premises that required to provide necessary typing
+   for us to prove the preservation on the stepped configuration.
+
+   ---------------------------------------------------------------------------
+
+   Some observation in comparsion with original paper and isabelle definition:
+
+   (1) Store
+
+   the paper used so called "store context" which essentially a store typing rule,
+   toghther with a store typing weakening rule.
+
+   in the spec setting, we only "valid" a store as "ok" and had a "extending" rule.
+   these 2 settings should be effctively equivalent.
+
+
+ *)
 Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
-    S ⊢A F ∈ C ->
-    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
-    (S, F, ainstrs) ↪ (S', F', ainstrs') ->
-    exists C', S' ⊢A F' ∈ C'  /\ (S', C') ⊢a* ainstrs' ∈ ts1 --> ts2.
+                  (* valid_config *)
+    ⊢S S ok ->       (* valid_store  *) (* valid_thread *)
+    S ⊢A F ∈ C ->                         (* valid_frame *)
+    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->       (* valid_admin_instr *)
+    (S, F, ainstrs) ↪ (S', F', ainstrs') ->  (* step in S_F_ainstrs level *)
+
+(* ---------------------------------------------------------------------------- *)
+
+    ⊢S S ⪯ S' /\    (* weakening *)
+      ⊢S S' ok /\      (* valid_store *)
+      S' ⊢A F' ∈ C /\  (* valid_frame  *)
+      (S',C) ⊢a* ainstrs' ∈ ts1 --> ts2. (* valid_admin_instr *)
 Proof with eauto.
-  introv HVA HVAIS HSC.
+  introv HVS HVA HVAIS HSC.
   gen ts1 ts2.
   dependent induction HSC; intros.
+  - (* SC_simple *) 
+    admit.
+  - admit.
+  - admit.
+  - admit.
   - admit.
   - (* SC_E *)
     apply plug_E_inner in HVAIS as Hinner.
     destruct Hinner as (ts3 & ts4 & Hinner).
-    edestruct (IHHSC S F S' F' ainstrs0 ainstrs'0) as (C' & HVA' & Hinner')...
-    exists C'. split... sort.
+    edestruct (IHHSC ainstrs'0 ainstrs0) as (HES & HVS' & HVA' & Hinner')...
+    splits...
+    (* only valid_admin_instrs remain, but with different store (up to weakening),
+       we need state some a store weakening version of [plug_E_same]
+     *)
+    Abort.
+
+
+
+Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
+                  (* valid_config *)
+    ⊢S S ok ->       (* valid_store  *) (* valid_thread *)
+    S ⊢A F ∈ C ->                         (* valid_frame *)
+    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->       (* valid_admin_instr *)
+    (S, F, ainstrs) ↪ (S', F', ainstrs') ->  (* step in S_F_ainstrs level *)
+
+    exists C',
+      ⊢S S ⪯ S' /\    (* weakening *)
+      ⊢S S' ok /\      (* valid_store *)
+      S' ⊢A F' ∈ C' /\  (* valid_frame -- it should be the same C *)
+      (S', C') ⊢a* ainstrs' ∈ ts1 --> ts2. (* valid_admin_instr *)
+Proof with eauto.
+  introv HVS HVA HVAIS HSC.
+  gen ts1 ts2.
+  dependent induction HSC; intros.
+  - (* SC_simple *) 
+    exists C.
+    inverts HVAIS as.
+    + (* VAIS_empty *)
+      exfalso.
+      eapply (S_F_ϵ_is_normal_form S' _ S' F'). 
+      exists ainstrs'...
+    + (* VAIS_snoc *)
+      introv HVAIS HVAI__N.
+      splits... 
+         (* valid_frame and valid store immediately follows since no changes for step_simple *)
+      ++ (*  ⊢S S' ⪯ S' *)
+         apply (extend_store_refl _ HVS).
+      ++ (* (S', C) ⊢a* ainstrs' ∈ ts1 --> (ts0 ++ ts4) *)
+         (* with a generalized version of [preservation_SC_simple] includes ts1 ... *)
+         eapply preservation_SC_simple_gen...
+
+  - (* SC_block *)
+    rename H1 into Hlength.
+    rename H2 into Hexpand. 
+    inverts HVAIS as.
+    + (* VAIS_empty *)
+      introv Heq; invert_eq_snoc_app Heq.
+    + (* VAIS_snoc *)
+      introv HVAIS' HVAI__N Heq.
+
+Ltac invert_eq_snoc_app2 Heq :=
+  apply eq_snoc_app_split_unsnoc in Heq;
+  rewrite unsnoc_snoc_app_some in Heq;
+  inverts Heq.
+
+      invert_eq_snoc_app2 Heq. 
+      exists C.
+      splits...
+      ++ apply extend_store_refl...
+      ++
+        (* 
+           The information to connect ts1 with ts is hided in the premises of VI_block,
+           so we need to furthur inverts HVAI to the case of VAI_instr.
+        *)
+          inverts HVAI__N as HVI__block.
+          inverts HVI__block as HVBT HVIS__body.
+
+          (* By inversion we destructing the blocktype as well,
+             then we can unfold the [expand__F] by simpl.
+           *)
+          inverts HVBT as; simpl in Hexpand.
+          +++ (* VBT_typeidx *)
+            introv HCtypes.
+            inverts HVA. simpl in Hexpand.
+            simpl in HCtypes.
+            inverts H.
+            simpl in Hexpand.
+            (* relation between MI_types and C_types? might involve context weakening again *) 
+            skip.
+          +++ (* [VBT_valtype__some] => show ts1 is [] *)
+            inverts Hbt.
+            skip.
+          +++ (* [VBT_valtype__none] => show ts1 and ts4 are [] *)
+            inverts Hbt.
+            skip.
+
+
+        rewrite <- (@app_nil_l admin_instr _).  (* TODO: used ever where, maybe as a Ltac *)
+        apply VAIS_snoc with (ts := []). 
+        +++ (* [] *)
+           specialize (vals_vais _ _ vals _ _ HVAIS') as (Heq1 & Heq2); simpl in Heq2.
+
+
+
+    
+  - admit.
+  - admit.
+  - admit.
+
+  - (* SC_E *)
+    apply plug_E_inner in HVAIS as Hinner.
+    destruct Hinner as (ts3 & ts4 & Hinner).
+    edestruct (IHHSC ainstrs'0 ainstrs0) as (C' & HES & HVS' & HVA' & Hinner')...
+    exists C'. splits...
+    (* only valid_admin_instrs remain, but with different contexts,
+       we need state some context weakening thing that can lead to a stronger [plug_E_same]
+     *)
 Abort.
 
 
 
-(* only top level frame *)
+(* only top level frame - should be followed as Collary *)
 Theorem preservation : forall S T S' T' rt,
     ⊢c (S, T) ∈ rt ->
     $(S, T) ↪ $(S', T') ->
@@ -1201,19 +1638,14 @@ Proof with eauto.
   introv HSC. simpl in HSC.
     destruct T' as [F' ainstrs'].
 
-  dup.
-  induction HSC.
-  + (* SC_simple *)
-    admit.
-  + (* SC_E *)
-    apply IHHSC.
-  + (* SC_E__trap *)
-    admit.
 
-  + dependent induction HSC.
+  dependent induction HSC.
 
-  - (* SC_simple *)
-    admit.
+  - admit.
+  - admit.
+  - admit.
+  - admit.
+  - admit.
 
   - (* SC_E *)
       remember {| A_locals := vals; A_module := mi |} as F.
@@ -1272,6 +1704,7 @@ Proof with eauto.
     *)
     clear IHHVAIS.
     dependent induction HSC.
+
     + (* SC_simple *)
       split. 
       ++ (* Preserve Type *)
@@ -1281,6 +1714,47 @@ Proof with eauto.
 
       ++ (* Preserve Store *) (* [⊢S S ⪯ S] *)
          apply (extend_store_refl _ HSok). 
+
+    + (* SC_block *) 
+      rename x into Heq.
+      apply snoc_app_inj in Heq.
+      destruct Heq; subst. 
+      rename H1 into Hlength.
+      rename H2 into Hbt. 
+      clear HVT. 
+      split. 
+      ++ (* Preserve Type *)
+          constructor; try apply HSok.
+          econstructor; try apply HVA...
+          rewrite <- app_nil_l with (l := [Label (length ts4) [] (⇈ vals0 ++ ↑ instrs)]). 
+
+          (* The information is hided in the premises of VI_block,
+             so we need to furthur inverts HVAI to the case of VAI_instr.
+           *)
+          inverts HVAI__N as HVI__block.
+          inverts HVI__block as HVBT HVIS__body.
+
+          (* By inversion we destructing the blocktype as well,
+             then we can unfold the [expand__F] by simpl.
+           *)
+          inverts HVBT as; simpl in Hbt.
+          +++ (* VBT_typeidx *)
+            introv HCtypes.
+            (* relation between MI_types and C_types? might involve context weakening again *)
+            skip.
+          +++ (* [VBT_valtype__some] => show ts1 is [] *)
+            inverts Hbt.
+            skip.
+          +++ (* [VBT_valtype__none] => show ts1 and ts4 are [] *)
+            inverts Hbt.
+            skip.
+
+      ++ (* Preserve Store *) (* [⊢S S ⪯ S] *)
+         apply (extend_store_refl _ HSok). 
+
+    + (* SC_loop *) admit.
+    + (* SC_if1 *) admit.
+    + (* SC_if2 *) admit.
 
     + (* SC_E *) 
       (*

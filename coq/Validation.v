@@ -443,41 +443,40 @@ Inductive valid_instr : context -> instr -> functype -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Control Instructions *)
 
-  (* | VI_nop : forall C, *)
-  (*     C ⊢ Nop ∈ [] --> [] *)
+  | VI_nop : forall C,
+      C ⊢ Nop ∈ [] --> []
 
-  (* | VI_unreachable : forall C ts1 ts2, *)
-  (*     C ⊢ Unreachable ∈ ts1 --> ts2 *)
+  | VI_unreachable : forall C ts1 ts2,
+      C ⊢ Unreachable ∈ ts1 --> ts2
 
-  (* | VI_block : forall C bt ts1 ts2 instrs, *)
-  (*     C ⊢bt bt ∈ ts1 --> ts2 -> *)
-  (*     C,labels ts2 ⊢* instrs ∈ ts1 --> ts2 -> *)
-  (*     C ⊢ Block bt instrs ∈ ts1 --> ts2 *)
+  | VI_block : forall C bt ts1 ts2 instrs,
+      C ⊢bt bt ∈ ts1 --> ts2 ->
+      C,labels ts2 ⊢* instrs ∈ ts1 --> ts2 ->
+      C ⊢ Block bt instrs ∈ ts1 --> ts2
 
-  (* | VI_loop : forall C bt ta tr instrs, *)
-  (*     C ⊢bt bt ∈ ta --> tr -> *)
-  (*     C,labels ta ⊢* instrs ∈ ta --> tr -> *)
-  (*     C ⊢ Loop bt instrs ∈ ta --> tr *)
+  | VI_loop : forall C bt ts1 ts2 instrs,
+      C ⊢bt bt ∈ ts1 --> ts2 ->
+      C,labels ts1 ⊢* instrs ∈ ts1 --> ts2 ->
+      C ⊢ Loop bt instrs ∈ ts1 --> ts2
 
-  (* | VI_if : forall C bt ta tr instrs1 instrs2, *)
-  (*     C ⊢bt bt ∈ ta --> tr -> *)
-  (*     C,labels tr ⊢* instrs1 ∈ ta --> tr -> *)
-  (*     C,labels tr ⊢* instrs2 ∈ ta --> tr -> *)
-  (*     C ⊢ If bt instrs1 instrs2 ∈ (ta ++ [T_i32]) --> tr *)
+  | VI_if : forall C bt ts1 ts2 instrs1 instrs2,
+      C ⊢bt bt ∈ ts1 --> ts2 ->
+      C,labels ts2 ⊢* instrs1 ∈ ts1 --> ts2 ->
+      C,labels ts2 ⊢* instrs2 ∈ ts1 --> ts2 ->
+      C ⊢ If bt instrs1 instrs2 ∈ (ts1 ++ [T_i32]) --> ts2
 
-  (* | VI_br : forall C l tr ts1 ts2, *)
-  (*     C.(C_labels).[l] = Some tr -> *)
-  (*     C ⊢ Br l ∈ (ts1 ++ tr) --> ts2 *)
+  | VI_br : forall C l ts ts1 ts2,
+      C.(C_labels).[l] = Some ts ->
+      C ⊢ Br l ∈ (ts1 ++ ts) --> ts2
 
-  (* | VI_br_if : forall C l tr,  *)
-  (*     C.(C_labels).[l] = Some tr -> *)
-  (*     C ⊢ Br_if l ∈ (tr ++ [T_i32]) --> tr *)
+  | VI_br_if : forall C l ts,
+      C.(C_labels).[l] = Some ts ->
+      C ⊢ Br_if l ∈ (ts ++ [T_i32]) --> ts
 
-  (* | VI_br_table : forall C ls l__N tr ts1 ts2,  *)
-  (*     (* this might be easier via length check *) *)
-  (*     Forall (fun l => C.(C_labels).[l] <> None) ls -> *)
-  (*     C.(C_labels).[l__N] = Some tr -> *)
-  (*     C ⊢ Br_table ls l__N ∈ (ts1 ++ tr ++ [T_i32]) --> ts2 *)
+  | VI_br_table : forall C ls l__N ts ts1 ts2,
+      Forall (fun l => C.(C_labels).[l] = Some ts) ls ->
+      C.(C_labels).[l__N] = Some ts ->
+      C ⊢ Br_table ls l__N ∈ (ts1 ++ ts ++ [T_i32]) --> ts2
 
   (* | VI_return : forall C tr ts1 ts2, *)
   (*     C.(C_return) = Some tr -> *)
