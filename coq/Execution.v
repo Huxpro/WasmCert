@@ -322,8 +322,8 @@ Inductive admin_instr :=
   | Plain (_: instr)
   | Trap
   | Invoke (closure: funcaddr)
-  (* | Init_elem (_: tableaddr) (_: I32.t) (_: list funcidx) *)
-  (* | Init_data (_: memaddr) (_: I32.t) (_: list byte) *)
+  | Init_elem (_: tableaddr) (_: I32.t) (_: list funcidx)
+  | Init_data (_: memaddr) (_: I32.t) (_: list byte)
   | Label (n: nat) (cont: list admin_instr) (body: list admin_instr)
   | Frame (n: nat) (activation: frame) (code: list admin_instr).
 Hint Constructors admin_instr.

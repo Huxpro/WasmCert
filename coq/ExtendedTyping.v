@@ -504,6 +504,7 @@ with valid_admin_instr : (store * context) -> admin_instr -> functype -> Prop :=
   (*        (assume internal always success?) *) *)
   (*     (S,C) ⊢a Invoke fa ∈ ts1 --> ts2 *)
 
+  (* One weird things are the below two are valid against 'ok'... *)
   (* | VAI_init_elem *)
   (* | VAI_init_data *)
 

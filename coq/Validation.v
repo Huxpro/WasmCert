@@ -351,14 +351,14 @@ Hint Constructors valid_tabletype.
 (* ----------------------------------------------------------------- *)
 (** *** Memory Types *)
 
-Reserved Notation "'⊢mt' mt 'ok'" (at level 70).
+Reserved Notation "'⊢met' met 'ok'" (at level 70).
 Inductive valid_memtype : memtype -> Prop :=
 
   | VMT: forall limits,
       ⊢l limits ∈ I32.max16 ->      (* spec use literal [2^16] here *)
-      ⊢mt limits ok
+      ⊢met limits ok
 
-where "'⊢mt' mt 'ok' " := (valid_memtype mt).
+where "'⊢met' met 'ok' " := (valid_memtype met).
 Hint Constructors valid_memtype.
 
 (* ----------------------------------------------------------------- *)
@@ -388,7 +388,7 @@ Inductive valid_externtype : externtype -> Prop :=
       ⊢et (ET_table tt) ok
 
   | VET_mem: forall mt,
-      ⊢mt mt ok ->
+      ⊢met mt ok ->
       ⊢et (ET_mem mt) ok
 
   | VET_global: forall gt,
@@ -831,6 +831,149 @@ Hint Constructors valid_tables.
 
 
 (* ----------------------------------------------------------------- *)
+(** *** Memories *)
+
+Reserved Notation "C '⊢me' mem ∈ met" (at level 70).
+Inductive valid_mem : context -> mem -> memtype -> Prop :=
+
+  | VME : forall C met,
+      ⊢met met ok ->
+      C ⊢me {| ME_type := met |} ∈ met
+
+where "C '⊢me' mem ∈ met" := (valid_mem C mem met).
+Hint Constructors valid_mem.
+
+(* ----------------------------------------------------------------- *)
+(** *** Globals *)
+
+Reserved Notation "C '⊢g' g ∈ gt" (at level 70).
+Inductive valid_global : context -> global -> globaltype -> Prop :=
+
+  | VG : forall C e mut t,
+      ⊢gt (mut, t) ok ->
+      C ⊢e e ∈ [t] ->
+      C ⊢e e const ->
+      C ⊢g {| G_type := (mut, t); G_init := e |} ∈ (mut, t)
+
+where "C '⊢g' g ∈ gt" := (valid_global C g gt).
+Hint Constructors valid_global.
+
+(* ----------------------------------------------------------------- *)
+(** *** Element Segments *)
+
+Reserved Notation "C '⊢el' elem 'ok' " (at level 70).
+Inductive valid_elem : context -> elem -> Prop :=
+
+  | VEL : forall C x limits e ys,
+      C.(C_tables).[x] = Some (limits, funcref) ->
+      C ⊢e e ∈ [T_i32] ->
+      C ⊢e e const ->
+      Forall (fun y => C.(C_funcs).[y] <> None) ys ->
+      C ⊢el {| EL_table := x; EL_offset := e; EL_init := ys |} ok
+
+where "C '⊢el' elem 'ok' " := (valid_elem C elem).
+Hint Constructors valid_elem.
+
+(* ----------------------------------------------------------------- *)
+(** *** Data Segments *)
+
+Reserved Notation "C '⊢d' data 'ok' " (at level 70).
+Inductive valid_data : context -> data -> Prop :=
+
+  | VD : forall C x e bs,
+      (* C.(C_mems).[x] <> None -> *)
+      C ⊢e e ∈ [T_i32] ->
+      C ⊢e e const ->
+      C ⊢d {| D_data := x; D_offset := e; D_init := bs |} ok
+
+where "C '⊢d' data 'ok' " := (valid_data C data).
+Hint Constructors valid_data.
+
+(* ----------------------------------------------------------------- *)
+(** *** Start Function *)
+
+Reserved Notation "C '⊢start' start 'ok' " (at level 70).
+Inductive valid_start : context -> start -> Prop :=
+
+  | VStart : forall C x, 
+      C.(C_funcs).[x] = Some ([] --> []) ->
+      C ⊢start {| START_func := x |} ok
+
+where "C '⊢start' start 'ok' " := (valid_start C start).
+Hint Constructors valid_start.
+
+(* ----------------------------------------------------------------- *)
+(** *** Exports *)
+
+Reserved Notation "C '⊢ex' ex '∈' et " (at level 70).
+Reserved Notation "C '⊢exd' exd '∈' et " (at level 70).
+Inductive valid_export : context -> export -> externtype -> Prop :=
+
+  | VEX : forall C name exd et, 
+      C ⊢exd exd ∈ et ->
+      C ⊢ex {| EX_name := name; EX_desc := exd |} ∈ et
+
+with valid_exportdesc : context -> exportdesc -> externtype -> Prop :=
+
+  | VEXD_func : forall C x ft,
+      C.(C_funcs).[x] = Some ft ->
+      C ⊢exd EXD_func x ∈ ET_func ft
+
+  | VEXD_table : forall C x tt,
+      C.(C_tables).[x] = Some tt ->
+      C ⊢exd EXD_table x ∈ ET_table tt
+
+  (* | VEXD_mem : forall C x met, *)
+  (*     C.(C_mems).[x] = Some met -> *)
+  (*     C ⊢exd EXD_mem x ∈ ET_mem met *)
+
+  (* | VEXD_global : forall C x gt, *)
+  (*     C.(C_globals).[x] = Some gt -> *)
+  (*     C ⊢exd EXD_global x ∈ ET_global gt *)
+
+where "C '⊢ex' ex '∈' et " := (valid_export C ex et)
+  and "C '⊢exd' exd '∈' et " := (valid_exportdesc C exd et).
+
+Hint Constructors valid_export.
+Hint Constructors valid_exportdesc.
+
+(* ----------------------------------------------------------------- *)
+(** *** Imports *)
+
+Reserved Notation "C '⊢im' im '∈' et " (at level 70).
+Reserved Notation "C '⊢imd' imd '∈' et " (at level 70).
+Inductive valid_import : context -> import -> externtype -> Prop :=
+
+  | VIM : forall C name1 name2 imd et,
+      C ⊢imd imd ∈ et ->
+      C ⊢im {| IM_module := name1; IM_name := name2; IM_desc := imd |} ∈ et
+
+with valid_importdesc : context -> importdesc -> externtype -> Prop :=
+
+  | VIMD_func : forall C x ft,
+      C.(C_funcs).[x] = Some ft ->
+      C ⊢imd IMD_func x ∈ ET_func ft
+
+  | VIMD_table : forall C x tt,
+      C.(C_tables).[x] = Some tt ->
+      C ⊢imd IMD_table x ∈ ET_table tt
+
+  (* | VIMD_mem : forall C x met, *)
+  (*     C.(C_mems).[x] = Some met -> *)
+  (*     C ⊢imd IMD_mem x ∈ ET_mem met *)
+
+  (* | VIMD_global : forall C x gt, *)
+  (*     C.(C_globals).[x] = Some gt -> *)
+  (*     C ⊢imd IMD_global x ∈ ET_global gt *)
+
+where "C '⊢im' im '∈' et " := (valid_import C im et)
+  and "C '⊢imd' imd '∈' et " := (valid_importdesc C imd et).
+
+Hint Constructors valid_import.
+Hint Constructors valid_importdesc.
+
+
+(* ----------------------------------------------------------------- *)
 (** *** Modules *)
 (** http://webassembly.github.io/spec/core/valid/modules.html#valid-module *)
 
@@ -856,7 +999,6 @@ Inductive valid_module: module -> functype -> Prop :=
         |}
       in
 
-      (* N.B. this has been removed in multi-value *)
         ⊢ft* functypes ok ->
 
       C ⊢f* funcs ∈ fts ->
