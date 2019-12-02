@@ -177,6 +177,13 @@ Fail Definition get_c (i: value) : val :=
 
    which allow the store to be bigger than the module and context.
    this rule actualy merge the "cl_typing" into "inst_typing"
+
+   --------------------------------------------------------------------
+   It's important to note that in the WASM spec, ignoring a field of context,
+   it doesn't mean "we don't care" (i.e. subtyping), but meaning empty (i.e. ϵ).
+
+   See: https://webassembly.github.io/multi-value/core/valid/conventions.html#contexts
+   "When spelling out a context, empty fields are omitted."
 *)
 
 Reserved Notation "S '⊢mi' Mi '∈' C" (at level 70).
@@ -185,18 +192,20 @@ Inductive valid_moduleinst : store -> moduleinst -> context -> Prop :=
   | VMI: forall S C fts fts' tts fas tas,
       ⊢ft* fts ok ->
 
-      (* external instances check * 4 instantiated as func/table/mem/global *)
-
-      (* since other field of [C] doesn't matter... *)
-      C.(C_types) = fts  ->
-      C.(C_funcs) = fts' ->
-      C.(C_tables) = tts ->
+      (* TODO: external instances check * 4 instantiated as func/table/mem/global *)
 
       S ⊢mi {|
               MI_types := fts;
               MI_funcaddrs := fas;
               MI_tableaddrs := tas;
-            |} ∈ C
+            |} ∈ {|
+                   C_types := fts;
+                   C_funcs := fts';
+                   C_tables := tts;
+                   C_locals := [];
+                   C_labels := [];
+                   C_return := None;
+                 |}
 
 where "S '⊢mi' Mi '∈' C"  := (valid_moduleinst S Mi C).
 
@@ -399,12 +408,12 @@ with valid_admin_instr : (store * context) -> admin_instr -> functype -> Prop :=
   (* | VAI_init_elem *)
   (* | VAI_init_data *)
 
-  | VAI_label : forall S C n instrs0 ainstrs ts1 ts2,
+  | VAI_label : forall S C n ainstrs0 ainstrs ts1 ts2,
       (* https://github.com/WebAssembly/multi-value/pull/35 *)
       length ts1 = n ->
-      (S,C) ⊢a* ↑instrs0 ∈ ts1 --> ts2 ->
+      (S,C) ⊢a* ainstrs0 ∈ ts1 --> ts2 ->
       (S,(C,labels ts1)) ⊢a* ainstrs ∈ [] --> ts2 ->
-      (S,C) ⊢a Label n instrs0 ainstrs ∈ [] --> ts2
+      (S,C) ⊢a Label n ainstrs0 ainstrs ∈ [] --> ts2
 
   (* | VAI_frame : forall S C ainstrs ts n F, *)
   (*     length ts = n -> *)

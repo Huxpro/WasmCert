@@ -19,6 +19,36 @@ Definition relation (X: Type) := X -> X -> Prop.
 
 
 (* ================================================================= *)
+(** ** Trivial *)
+
+Lemma eq_len_eq : forall {X: Type} (xs1 xs2: list X), 
+    xs1 = xs2 -> length xs1 = length xs2.
+Proof with auto.
+  introv Heq.
+  subst...
+Qed.
+
+Lemma plus_0_n_rev : forall x y,
+    x + y = y -> x = 0.
+Proof. 
+  intros. omega.
+Qed.
+
+Lemma cons_to_app: forall {X: Type} (x: X) (xs: list X),
+    x :: xs = [x] ++ xs.
+Proof.
+  Admitted.
+
+Lemma app_eq_same_len : forall {X: Type} (xs xs' xs1 xs2: list X), 
+    length xs1 = length xs2 ->
+    xs ++ xs1 = xs' ++ xs2 ->
+    xs = xs' /\ xs1 = xs2.
+Proof with auto.
+Admitted.
+
+
+
+(* ================================================================= *)
 (** ** Snoc *)
 
 Fixpoint snoc {X: Type} (l: list X) (x: X) : list X :=
@@ -104,19 +134,6 @@ Proof with auto.
   - inverts H4...
 Qed.
 
-Lemma eq_len_eq : forall {X: Type} (xs1 xs2: list X), 
-    xs1 = xs2 -> length xs1 = length xs2.
-Proof with auto.
-  introv Heq.
-  subst...
-Qed.
-
-Lemma plus_0_n_rev : forall x y,
-    x + y = y -> x = 0.
-Proof. 
-  intros. omega.
-Qed.
-
 Lemma snoc_app_eq_same_len : forall {X: Type} (xs xs1 xs2: list X), 
     length xs1 = length xs2 ->
     xs ++ xs1 = xs2 ->
@@ -132,6 +149,7 @@ Proof with auto.
   }
   subst...
 Qed.
+
         
 
 (* ----------------------------------------------------------------- *)
@@ -314,6 +332,12 @@ Lemma unsnoc_car_snoc_app_some : forall {X: Type} (l: list X) x,
 Proof. 
   Admitted.
 
+Lemma unsnoc_car_snoc_app2_some : forall {X: Type} (l: list X) x1 x2,
+    unsnoc_car (l ++ [x1; x2]) = Some x2.
+Proof. 
+  Admitted.
+
+
 Lemma unsnoc_snoc_some : forall {X: Type} (l: list X) x,
     unsnoc (snoc l x) = Some (l, x).
 Proof. 
@@ -400,6 +424,23 @@ Ltac invert_eq_snoc_app_pack Heq cdr car :=
 Ltac invert_eq_snoc_app Heq :=
   invert_eq_snoc_app_compute Heq.
 
+(* ----------------------------------------------------------------- *)
+(** ** Variants of [invert_eq_snoc_app] *)
+
+(* need a [symmetry] beforehand *)
+Ltac invert_eq_snoc_app_sym H :=
+  symmetry in H;
+  invert_eq_snoc_app H.
+
+(* need a [unsnoc_snoc_app_some] afterwards in the case
+     H: xs1 ++ [x1] = xs2 ++ [x2]
+ *)
+Ltac invert_snoc_app_eq_snoc_app Heq :=
+  apply eq_snoc_app_split_unsnoc in Heq;
+  rewrite unsnoc_snoc_app_some in Heq;
+  inverts Heq.
+
+
 Module InvertEqSnocAppTest.
 
   Lemma nil_case : forall cdr,
@@ -435,6 +476,8 @@ Module InvertEqSnocAppTest.
 
 End InvertEqSnocAppTest.
 
+
+
 (* ----------------------------------------------------------------- *)
 (** ** Map Equal Snoc App *)
 
@@ -463,6 +506,7 @@ Proof with auto.
     exists cdr car.
     split; try subst; assumption. 
 Qed.
+
 
 
 (* ================================================================= *)
@@ -593,3 +637,299 @@ Proof with auto.
           ++++ apply unsnoc_car_weaken. unfold not; intros Hn; inversion Hn.
           ++++ destruct H0. exists x. subst...
 Qed.
+
+
+(* ================================================================= *)
+(** ** VAIS lemma *)
+
+(* ----------------------------------------------------------------- *)
+(** *** Weakening *)
+
+(* Can be proved by using the properties
+   where the [VAIS_nil] case can choose its polymorphic type underterminstically. 
+*)
+Lemma vais_weakening : forall S C ainstrs ts0 ts1,
+    (S, C) ⊢a* ainstrs ∈ ts0 --> (ts0 ++ ts1) <->
+    (S, C) ⊢a* ainstrs ∈ [] --> ([] ++ ts1).
+Proof with auto.
+Admitted.
+
+Lemma vais_weakening_app : forall S C ainstrs ts0 ts1 ts2,
+    (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2) <->
+    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2.
+Proof with auto.
+Admitted.
+
+(* ----------------------------------------------------------------- *)
+(** *** Lifting *)
+
+Lemma vis_to_vais : forall S C instrs ts0 ts1,
+        C  ⊢*   instrs ∈ ts0 --> ts1 ->
+    (S, C) ⊢a* ↑instrs ∈ ts0 --> ts1.
+Proof with auto.
+Admitted.
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Append *)
+
+(*
+   ts1 --> [  ainstrs0  |  ainstrs1 ] --> ts3
+   ts1 --> [  ainstrs0  ] --> ts2
+                ts2 --> [  ainstrs1 ] --> ts3
+ *)
+Lemma vais_app : forall S C ainstrs0 ainstrs1 ts1 ts3,
+  (S, C) ⊢a* ainstrs0 ++ ainstrs1 ∈ ts1 --> ts3 <->
+  exists ts2,
+    (S, C) ⊢a* ainstrs0 ∈ ts1 --> ts2
+  /\ (S, C) ⊢a* ainstrs1 ∈ ts2 --> ts3.
+Proof with eauto.
+  split.
+  --- (* -> *)
+  introv HVAISapp.
+  dependent induction HVAISapp;
+    rename x into Heqapp.
+  - symmetry in Heqapp. apply app_eq_nil in Heqapp.
+    inverts Heqapp. eexists. split...
+  - destruct ainstrs1 as [ | ai ais].
+    + destruct ainstrs0 as [ | ai ais ].
+      ++ simpl in Heqapp. symmetry in Heqapp.
+         invert_eq_snoc_app_compute Heqapp.
+      ++ (*
+           [ ainstrs ] ++ [ainstr__N]
+           [ ainstrs0             ] 
+       *)
+        destruct (cons_to_snoc_app ai ais) as (ainstrs1' & ainstr1__N & Heq).
+        rewrite Heq in *.
+        rewrite app_nil_r in Heqapp.
+        eapply snoc_app_inj in Heqapp.
+        inverts Heqapp. 
+        eexists.
+        split...
+    + (*
+           [ ainstrs0 | ainstrs1'] ++ [ainstr__N]
+           [ ainstrs0 | ainstrs1              ] 
+       *)
+      destruct (cons_to_snoc_app ai ais) as (ainstrs1' & ainstr1__N & Heq).
+      rewrite Heq in *.
+      rewrite app_assoc in Heqapp.
+      eapply snoc_app_inj in Heqapp.
+      inverts Heqapp. 
+      edestruct IHHVAISapp as (ts4' & HV1 & HV2)...
+  --- (* <- *)
+Admitted.    
+
+
+(*
+   ts1 --> [  ainstrs0  |  ainstrs1  |  ainstrs2  ] --> ts4
+   ts1 --> [  ainstrs0  ] --> ts2
+                ts2 --> [  ainstrs1 ] --> ts3
+                             ts3 --> [  ainstrs1  ] --> ts4
+ *)
+Lemma vais_app3 : forall S C ainstrs0 ainstrs1 ainstrs2 ts1 ts4,
+  (S, C) ⊢a* ainstrs0 ++ ainstrs1 ++ ainstrs2 ∈ ts1 --> ts4 <->
+  exists ts2 ts3,
+    (S, C) ⊢a* ainstrs0 ∈ ts1 --> ts2
+  /\ (S, C) ⊢a* ainstrs1 ∈ ts2 --> ts3
+  /\ (S, C) ⊢a* ainstrs2 ∈ ts3 --> ts4.
+Proof with eauto.
+  split.
+  - (* -> *)
+    introv Happ3.
+    apply vais_app in Happ3.
+    destruct Happ3 as (ts2 & Hainstrs0 & Happ2).
+    apply vais_app in Happ2.
+    destruct Happ2 as (ts3 & Hainstrs1 & Hainstrs2).
+    exists ts2 ts3...
+  - (* <- *)
+    intros (ts2 & ts3 & H0 & H1 & H2).
+    apply vais_app. exists ts2. split...
+    apply vais_app. exists ts3. split...
+Qed.
+
+(* ----------------------------------------------------------------- *)
+(** *** App nil L *)
+
+Lemma vais_ts_app_nil_l: forall S C ainstrs ts1 ts2,
+  (S, C) ⊢a* ainstrs ∈ ts1 --> ts2 <->
+  (S, C) ⊢a* ainstrs ∈ ts1 --> ([] ++ ts2).
+Proof with eauto.
+  split;
+  introv HVAIS.
+  rewrite app_nil_l with (l := ts2)...
+  rewrite <- app_nil_l with (l := ts2)...
+Qed.
+
+Lemma vais_ainstrs_app_nil_l: forall S C ainstrs ts1 ts2,
+  (S, C) ⊢a* ainstrs ∈ ts1 --> ts2 <->
+  (S, C) ⊢a* [] ++ ainstrs ∈ ts1 --> ts2.
+Proof with eauto.
+  split;
+  introv HVAIS.
+  rewrite app_nil_l with (l := ainstrs)...
+  rewrite <- app_nil_l with (l := ainstrs)...
+Qed.
+
+Lemma vais_ts0_ϵ: forall S C ts0,
+        (S, C) ⊢a* [] ∈ [] --> (ts0 ++ []) ->
+        ts0 = [].
+Proof with eauto.
+  introv HVAIS.
+  inverts HVAIS.
+  ++ symmetry in H3. apply app_eq_nil in H3. destruct H3...
+  ++ symmetry in H1. invert_eq_snoc_app H1.
+Qed.
+      
+(* ----------------------------------------------------------------- *)
+(** *** Vals *)
+
+Lemma vais_vals: forall S C vals ts1 ts2, 
+    (S,C) ⊢a* ⇈vals ∈ ts1 --> ts2 ->
+    ts2 = ts1 ++ map type_of vals.
+Proof with auto.
+  introv HVAIS.
+  dependent induction HVAIS;
+    rename x into Heq;
+    symmetry in Heq.
+
+  - (* VAIS_empty *)
+    apply map_eq_nil in Heq;
+      apply map_eq_nil in Heq;
+      subst;
+      simpl.
+    rewrite app_nil_r...
+
+  - (* VAIS_snoc *)
+    rename H into HVAI__N.
+    apply map_eq_snoc_app_split in Heq.
+    destruct Heq as (instrs & instr__N & Heq & Hinstrs & Hinstr__N).
+    apply map_eq_snoc_app_split in Heq.
+    destruct Heq as (vals' & val__N & Heq & Hvals' & Hval__N).
+
+    rewrite <- Hinstrs in *.
+    rewrite <- Hinstr__N in *.
+    rewrite <- Hvals' in *.
+    rewrite <- Hval__N in *.
+
+    inverts HVAI__N as HVI__N.
+    inverts HVI__N.
+
+    asserts_rewrite (map type_of vals = map type_of vals' ++ [type_of val__N]).
+    + rewrite -> Heq. apply map_app.
+    + rewrite app_assoc.
+      apply snoc_app_inj.
+      split...
+      ++ eapply (IHHVAIS S C vals' ts1 ts0)...
+         rewrite app_nil_r...
+Qed.
+
+
+(* ----------------------------------------------------------------- *)
+(** *** S C Irrelevant Weakening *)
+
+Lemma vais_ϵ_SC_weakening : forall S S' C C' ts0 ts1,
+    (S,  C ) ⊢a* [] ∈ ts0 --> ts1 ->
+    (S', C') ⊢a* [] ∈ ts0 --> ts1.
+Proof with auto.
+  introv HVAIS.
+  inverts HVAIS...
+  invert_eq_snoc_app_sym H1.
+Qed.
+
+      
+Lemma vis_val_SC_weakening : forall S S' C C' val ts0 ts1,
+    (S,  C ) ⊢a Plain (Const val) ∈ ts0 --> ts1 ->
+    (S', C') ⊢a Plain (Const val) ∈ ts0 --> ts1.
+Proof with auto.
+  introv HVAI.
+  inverts HVAI as HVI.
+  inverts HVI...
+Qed.
+
+
+Lemma vais_vals_SC_weakening : forall S S' C C' vals ts0 ts1,
+    (S,  C ) ⊢a* ⇈vals ∈ ts0 --> ts1 ->
+    (S', C') ⊢a* ⇈vals ∈ ts0 --> ts1.
+Proof with auto.
+  induction vals as [ | val vals' IH];
+  introv HVAIS.
+  - eapply vais_ϵ_SC_weakening with (S := S) (C := C)...
+  - rewrite cons_to_app in HVAIS.
+    rewrite upup_app in HVAIS.
+    rewrite cons_to_app. 
+    rewrite upup_app. 
+    apply vais_app in HVAIS.
+    apply vais_app.
+    destruct HVAIS as (ts2 & Hval & Hvals').
+    exists ts2. split.
+    + rewrite vais_ainstrs_app_nil_l in Hval.
+      inverts Hval as...
+      introv HVAIS HVAI__N Heq.
+      invert_eq_snoc_app_sym Heq.
+      rewrite vais_ainstrs_app_nil_l. 
+      eapply VAIS_snoc...
+      instantiate (1 := ts). eapply vais_ϵ_SC_weakening with (S := S) (C := C)... 
+      eapply vis_val_SC_weakening with (S := S) (C := C)...
+    + apply IH in Hvals'...
+Qed.
+    
+
+(* ----------------------------------------------------------------- *)
+(** *** Related on Length *)
+
+Lemma vais_vals_len : forall S C vals ts0 ts0' ts1,
+    length vals = length ts1 ->
+    (S, C) ⊢a* ⇈vals ∈ ts0 --> (ts0' ++ ts1) ->
+    ts0 = ts0'.
+Proof with auto.
+  introv Hlength HVAIS.
+  apply vais_vals in HVAIS.
+  apply app_eq_same_len in HVAIS.
+  destruct HVAIS...
+  rewrite map_length...
+Qed.
+
+
+Lemma vais_vals_len_app_r : forall S C vals1 vals2 ts0 ts1 ts2,
+    length vals2 = length ts2 ->
+    (S, C) ⊢a* ⇈vals1 ++ ⇈vals2 ∈ ts0 --> (ts0 ++ ts1 ++ ts2) ->
+    (S, C) ⊢a* ⇈vals2 ∈ ts0 --> (ts0 ++ ts2).
+Proof with auto.
+  introv Hlength HVAIS.
+  eapply vais_app in HVAIS.
+  destruct HVAIS as (ts3 & Hvals1 & Hvals2).
+  rewrite app_assoc in Hvals2.
+  specialize (vais_vals_len _ _ _ _ _ _ Hlength Hvals2) as Heq; subst.
+  apply vais_weakening in Hvals2.
+  apply vais_weakening...
+Qed.
+
+
+Lemma vais_vals_len_app : forall S C vals1 vals2 ts0 ts0' ts1 ts2,
+    length vals1 = length ts1 ->
+    length vals2 = length ts2 ->
+    (S, C) ⊢a* ⇈vals1 ++ ⇈vals2 ∈ ts0 --> (ts0' ++ ts1 ++ ts2) ->
+    ts0 = ts0' /\
+      (S, C) ⊢a* ⇈vals1 ∈ [] --> ts1 /\
+      (S, C) ⊢a* ⇈vals2 ∈ [] --> ts2.
+Proof with auto.
+  introv Hlength1 Hlength2 HVAIS.
+  assert (Hlength : length (vals1 ++ vals2) = length (ts1 ++ ts2)).
+  rewrite app_length.
+  rewrite app_length.
+  rewrite Hlength1.
+  rewrite Hlength2...
+  assert (H1 : ts0 = ts0').
+  rewrite <- upup_app in HVAIS.
+  apply vais_vals_len in HVAIS...
+  rewrite <- H1 in HVAIS.
+  (* specialize (vais_vals_len_app_r S C vals1 vals2 ts0 ts1 ts2 Hlength2 HVAIS) as Hvals2. *)
+  apply vais_app in HVAIS.
+  destruct HVAIS as (ts3 & Hvals1 & Hvals2).
+  rewrite app_assoc in Hvals2.
+  specialize (vais_vals_len _ _ _ _ _ _ Hlength2 Hvals2) as H2.
+  splits; subst...
+  - apply vais_weakening in Hvals1. apply vais_ts_app_nil_l...
+  - apply vais_weakening in Hvals2. apply vais_ts_app_nil_l...
+Qed.
+  

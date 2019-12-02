@@ -289,12 +289,17 @@ Definition expand (F: frame) (bt: blocktype) : option functype :=
 
 (* ----------------------------------------------------------------- *)
 (** *** Administrative Instructions *)
+(**
+   We tried to state [cont : list instr] but found it's more reasonable
+   to isolate the [admin_instr] from [instr] and let them "lift as a whole", i.e. 
+   [instrs] are lifting into [aintrs] during the step from [Block, If, Loop] to [Label]
+ *)
 
 Inductive admin_instr :=
   | Plain (_: instr)
   | Trap
   | Invoke (closure: funcaddr)
-  | Label (n: nat) (cont: list instr) (code: list admin_instr)
+  | Label (n: nat) (cont: list admin_instr) (body: list admin_instr)
   | Frame (n: nat) (activation: frame) (code: list admin_instr).
 Hint Constructors admin_instr.
 
@@ -311,8 +316,8 @@ Notation lift_vals := (map Const).
     notation for the lifting *)
 
 Coercion Plain : instr >-> admin_instr.
-Notation "↑ instrs" := (lift_instrs instrs) (at level 60).         (* \uparrow *)
-Notation "⇈ vals" := (lift_instrs (lift_vals vals)) (at level 50). (* \upuparrows *)
+Notation "↑ instrs" := (lift_instrs instrs) (at level 9).         (* \uparrow *)
+Notation "⇈ vals" := (lift_instrs (lift_vals vals)) (at level 9). (* \upuparrows *)
 
 
 Module AdminInstrCoercisonTest.
@@ -397,7 +402,7 @@ Inductive block_context : nat -> Type :=
   (* Bk+1 ::= val∗ label n {instr∗} Bk end instr∗  *)
   | B_cons : forall {k: nat}
                (vals: list val)
-               (n: nat) (cont: list instr)  (* Label *)
+               (n: nat) (cont: list admin_instr)  (* Label *)
                (B: block_context k)
                (ainstrs: list admin_instr),
                block_context (k+1).
@@ -417,7 +422,7 @@ Module BlockContextTest.
 
   Example vals := [c; c].
   Example instrs := ↑[Nop].
-  Example cont := [Nop].
+  Example cont := ↑[Nop].
 
   Example B0 := B_nil vals instrs.
   (*
@@ -537,7 +542,7 @@ Notation "'$' cfg" := (config_to_tuple cfg) (at level 49).
 Inductive eval_context :=
   | E_hole 
   | E_seq (vals: list val) (E: eval_context) (ainstrs: list admin_instr)
-  | E_label (n: nat) (cont: list instr) (E: eval_context).
+  | E_label (n: nat) (cont: list admin_instr) (E: eval_context).
 
 Fixpoint plug_eval_context (E: eval_context) (hole: list admin_instr) : list admin_instr :=
   match E with
@@ -548,14 +553,13 @@ Fixpoint plug_eval_context (E: eval_context) (hole: list admin_instr) : list adm
 
 Notation plug__E := plug_eval_context.
 
-
 Module EvalContextTest.
 
   Parameter c : val.
 
   Example vals := [c; c].
   Example instrs := ↑[Nop].
-  Example cont := [Nop].
+  Example cont := ↑[Nop].
 
   Example E0 := E_hole.
   Example E1 := E_seq vals E0 instrs.
@@ -787,10 +791,10 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
   | SS_unreachable :
       ↑[Unreachable] ↪s [Trap]
 
-  | SS_br : forall n instrs l (Bl: block_context l) vals,
+  | SS_br : forall n ainstrs l (Bl: block_context l) vals,
 (*    label_n {instr*}       B^l[val^n (br l)] end   ↪ val^n instr*             *)
       length vals = n ->
-      [Label n instrs (plug__B Bl (⇈vals ++ ↑[Br l]))] ↪s ⇈vals ++ ↑instrs
+      [Label n ainstrs (plug__B Bl (⇈vals ++ ↑[Br l]))] ↪s ⇈vals ++ ainstrs
 
   | SS_br_if1 : forall c l,
       (* c <> I32.zero -> *)
@@ -820,9 +824,9 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
 (* ----------------------------------------------------------------- *)
 (** *** Block *)
 
-  | SS_block__exit : forall n m vals instrs,
+  | SS_block__exit : forall n m vals ainstrs,
       length vals = m ->
-      [Label n instrs (⇈vals)]  ↪s ⇈vals
+      [Label n ainstrs (⇈vals)]  ↪s ⇈vals
 
 (* ----------------------------------------------------------------- *)
 (** *** Function Calls *)
@@ -891,25 +895,44 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
       expand F bt = Some (ts1 --> ts2) ->
       (S, F, ⇈vals ++ ↑[Block bt instrs]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs)])
 
+  (** N.B. only the the loop-stepped-[Label] used the input-type-arity [m]
+      rather than [n]. This is because 
+
+      Intuitively, the "cont" part need to be "ensured" there are as many [vals] 
+      left on the stack by its prev loop for the current cont-loop to take.
+
+        val^n ; loop...br
+      ↪ label [loop...br] [val^n]...br
+      ↪ [val^n] [loop...br] 
+      ↪ label [loop...br] [val^n]...br
+
+      I found my typo here when the proof could not go through when we tried
+      to show the "cont" part well-typed of [VI_loop] rule.
+
+     TODO: the order of is different in [Block/If/Loop] (m-->n) with [Invoke](n-->m)
+           we should fix both the spec and our code.
+   *)
   | SC_loop : forall S F m n ts1 ts2 bt instrs vals,
       m = length ts1 ->
       n = length ts2 ->
       length vals = m ->
       expand F bt = Some (ts1 --> ts2) ->
-      (S, F, ⇈vals ++ ↑[Loop bt instrs]) ↪ (S, F, [Label n [Loop bt instrs] (⇈vals ++ ↑instrs)])
+      (S, F, ⇈vals ++ ↑[Loop bt instrs]) ↪ (S, F, [Label m ↑[Loop bt instrs] (⇈vals ++ ↑instrs)])
 
   (* The original paper definition (and Isabelle) simply desugar [if] into [block]
      But here we faithfully represent the spec and made the rule explicit. *)
 
-  | SC_if1 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
+  | SC_if__nez : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
       m = length ts1 ->
       n = length ts2 ->
       length vals = m ->
       c <> I32.zero ->
+      (* c <> I32.zero -> *)
+      (* I32.eqz c = false -> *)
       expand F bt = Some (ts1 --> ts2) ->
       (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs1)])
 
-  | SC_if2 : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
+  | SC_if__eqz : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
       m = length ts1 ->
       n = length ts2 ->
       length vals = m ->

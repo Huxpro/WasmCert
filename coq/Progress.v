@@ -596,11 +596,8 @@ Proof with eauto.
           inverts HVR as HForall2; simpl.
           ++++ (* VR_vals *)
             (* We are not inside a label...how to step?
-               SS_br require a label.
-               this should be forbidden by validtion..
-               C.labels[l0] should have return None.
-
-               Vacouse
+               SS_br require a label to br.
+               This would be vacuously true. 
              *)
             admit.
           ++++ (* VR_trap *)
