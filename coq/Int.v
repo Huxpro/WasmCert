@@ -39,6 +39,7 @@ Module Type S.
   Parameter one : t.
   Parameter min : t.
   Parameter max : t.
+  Parameter max16 : t.
 
   Parameter from_nat : nat -> t.
   Parameter to_nat : t -> nat.
@@ -93,6 +94,7 @@ Module Make (R: Rep) : S.
   Parameter one : t.
   Parameter min : t.
   Parameter max : t.
+  Parameter max16 : t.
 
   Parameter from_nat : nat -> t.
   Parameter to_nat : t -> nat.

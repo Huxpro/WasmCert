@@ -17,9 +17,6 @@ From Wasm Require Export Commons.
 Export ListNotations.
 
 
-(** Module Type, Signature.. **)
-From Coq Require Export Structures.Equalities.
-
 (* ================================================================= *)
 (** ** Modules (Pre) *)
 
@@ -30,7 +27,7 @@ From Coq Require Export Structures.Equalities.
 (** https://webassembly.github.io/multi-value/core/syntax/modules.html#indices *)
 
 (** technically, indices are u32 so it's bounded.
-    currently we generalized both indices and vec as unbounded.
+    currently we generalized both indices and vec as unbounded nat.
   *)
 
 Definition typeidx := nat.
@@ -201,7 +198,7 @@ Inductive instr :=
 (** *** Control Instructions *)
   | Nop
   | Unreachable
-  (* TODO: technically, they should take a [expr] *)
+  (* TODO: technically, they should take a [expr], though isomorphic *)
   | Block (bt: blocktype) (b: list instr)
   | Loop (bt: blocktype) (b: list instr)
   | If (bt: blocktype) (b1: list instr) (b2: list instr)
@@ -215,7 +212,9 @@ Inductive instr :=
 Coercion Const : val >-> instr.
 
 
-(* The only difference is typing aginast [resulttype] *)
+(* The only difference is that [expr]'s typecheck aginast [resulttype],
+   see [Validation/valid_expr].
+ *)
 Definition expr : Type := list instr.
 
 
@@ -236,13 +235,89 @@ Record func :=
 (* ----------------------------------------------------------------- *)
 (** *** Tables *)
 
-(* In the current version of WebAssembly, at most one table may be defined or imported in a single module, and all constructs implicitly reference this table *)
+(* Note: In the current version of WebAssembly, at most one table may be defined or
+   imported in a single module, and all constructs implicitly reference this table 0 *)
 
 Record table :=
   {
     T_type : tabletype;
   }.
 
+(* ----------------------------------------------------------------- *)
+(** *** Memories *)
+
+Record mem :=
+  {
+    ME_type : memtype;
+  }.
+
+(* ----------------------------------------------------------------- *)
+(** *** Globals *)
+
+Record global :=
+  {
+    G_type : globaltype;
+    G_init : expr;
+  }.
+
+(* ----------------------------------------------------------------- *)
+(** *** Element Segments *)
+
+Record elem :=
+  {
+    EL_table : tableidx;
+    EL_offset : expr;
+    EL_init : list funcidx;
+  }.
+
+(* ----------------------------------------------------------------- *)
+(** *** Data Segments *)
+
+Record data :=
+  {
+    D_data : memidx;
+    D_offset : expr;
+    D_init : list byte;
+  }.
+
+(* ----------------------------------------------------------------- *)
+(** *** Start Function *)
+
+Record start := 
+  {
+    START_func : funcidx;
+  }.
+
+(* ----------------------------------------------------------------- *)
+(** *** Exports *)
+
+Inductive exportdesc :=
+  | EXD_func (_: funcidx)
+  | EXD_table (_: tableidx)
+  | EXD_mem (_: memidx)
+  | EXD_global (_: globalidx).
+
+Record export :=
+  {
+    EX_name : name;
+    EX_desc : exportdesc;
+  }.
+
+(* ----------------------------------------------------------------- *)
+(** *** Imports *)
+
+Inductive importdesc :=
+  | IMD_func (_: funcidx)
+  | IMD_table (_: tableidx)
+  | IMD_mem (_: memidx)
+  | IMD_global (_: globalidx).
+
+Record import :=
+  {
+    IM_module : name;
+    IM_name : name;
+    IM_desc : importdesc;
+  }.
 
 (* ----------------------------------------------------------------- *)
 (** *** Module *)
@@ -252,6 +327,13 @@ Record module :=
     M_types  : list functype;
     M_funcs  : list func;
     M_tables : list table;
+    (* M_mems : list mem; *)
+    (* M_globals : list global; *)
+    (* M_elem : list elem; *)
+    (* M_data : list data; *)
+    (* M_start : option start; *)
+    (* M_imports : list import; *)
+    (* M_exports : list export; *)
   }.
 
                   

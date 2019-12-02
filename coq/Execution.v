@@ -160,11 +160,32 @@ Record meminst :=
 (* ----------------------------------------------------------------- *)
 (** *** Global Instances *)
 
-(* ----------------------------------------------------------------- *)
-(** *** Export Instances *)
+Record globalinst :=
+  {
+    GI_value : val;
+    GI_mut : mut;
+  }.
 
 (* ----------------------------------------------------------------- *)
 (** *** External Values *)
+(** EV/ET - extern *)
+(** EX    - export *)
+
+Inductive externval :=
+  | EV_func (_: funcaddr)
+  | EV_table (_: tableaddr)
+  | EV_mem (_: memaddr)
+  | EV_global (_: globaladdr).
+
+(* ----------------------------------------------------------------- *)
+(** *** Export Instances *)
+
+Record exportinst :=
+  {
+    EXI_name : name;
+    EXI_value : externval;
+  }.
+
 
 (* ----------------------------------------------------------------- *)
 (** *** Store *)
@@ -182,6 +203,8 @@ Definition empty_store :=
   {|
     S_funcs := [];
     S_tables := [];
+    (* S_mems := []; *)
+    (* S_globals := []; *)
   |}.
 
 
@@ -299,6 +322,8 @@ Inductive admin_instr :=
   | Plain (_: instr)
   | Trap
   | Invoke (closure: funcaddr)
+  (* | Init_elem (_: tableaddr) (_: I32.t) (_: list funcidx) *)
+  (* | Init_data (_: memaddr) (_: I32.t) (_: list byte) *)
   | Label (n: nat) (cont: list admin_instr) (body: list admin_instr)
   | Frame (n: nat) (activation: frame) (code: list admin_instr).
 Hint Constructors admin_instr.

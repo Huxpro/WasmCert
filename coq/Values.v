@@ -30,6 +30,13 @@ End ValRepTest.
 
 Parameter byte : Type.
 
+(* ----------------------------------------------------------------- *)
+(** *** Names *)
+
+Parameter char : Type.
+
+Definition name := list char.
+
 
 (* ================================================================= *)
 (** ** Execution - Runtime Structure - Values *)

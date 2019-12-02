@@ -100,14 +100,14 @@ Notation resulttype := (list valtype).
 
 Record functype :=
   {
-    ins : resulttype;
-    outs: resulttype;
+    FT_ins  : resulttype;
+    FT_outs : resulttype;
   }.
 
 Module FunctypeNotations.
 
   Notation "ts1 --> ts2" :=
-    ({| ins := ts1; outs := ts2|})
+    ({| FT_ins := ts1; FT_outs := ts2|})
     (at level 30, right associativity) : wasm_scope.
   Open Scope wasm_scope.
 
@@ -120,7 +120,7 @@ Module TypesTest.
 
   Example ex_res1: resulttype := [].
   Example ex_res2: resulttype := [T_i32].
-  Example ex_fun: functype := {| ins := [T_i32]; outs := [T_i32] |}.
+  Example ex_fun: functype := {| FT_ins := [T_i32]; FT_outs := [T_i32] |}.
 
   (* Func Notation Testing *)
 
@@ -171,6 +171,7 @@ Definition memtype := limits.
    combined it can represent *function pointer* and dynamic linking.
  *)
 
+(* We don't need ET since [funcref] is a unique name. *)
 Inductive elemtype := funcref.
 
 Definition tabletype : Type := limits * elemtype.
@@ -179,9 +180,21 @@ Definition tabletype : Type := limits * elemtype.
 (* ----------------------------------------------------------------- *)
 (** *** Global Types *)
 
+Inductive mut :=
+  | GT_const
+  | GT_var.
+
+Definition globaltype : Type := mut * valtype.
+
 
 (* ----------------------------------------------------------------- *)
 (** *** External Types *)
+
+Inductive externtype :=
+  | ET_func (ft: functype)
+  | ET_table (tt: tabletype)
+  | ET_mem (mt: memtype)
+  | ET_global (gt: globaltype).
 
 
 (* ----------------------------------------------------------------- *)

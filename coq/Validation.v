@@ -33,10 +33,10 @@ Record context :=
     C_types : list functype;
     C_funcs : list functype;
     C_tables : list tabletype;
+    (* C_mems : list memtype; *)
+    (* C_globals : list globaltype; *)
     C_locals : list valtype;
     C_labels : list resulttype;
-
-    (* this could actually be just a resulttype since [] can represent None *)
     C_return : option resulttype;  
   }.
 
@@ -45,6 +45,8 @@ Definition empty_context :=
     C_types := [];
     C_funcs := [];
     C_tables := [];
+    (* C_mems := []; *)
+    (* C_globals := []; *)
     C_locals := [];
     C_labels := [];
     C_return := Some [];
@@ -313,7 +315,6 @@ Inductive valid_functype : functype -> Prop :=
       ⊢ft ts1 --> ts2 ok
 
 where "'⊢ft' ft 'ok' " := (valid_functype ft).
-
 Hint Constructors valid_functype.
 
 
@@ -330,7 +331,6 @@ Inductive valid_functypes : list functype -> Prop :=
       ⊢ft* fts ok
 
 where "'⊢ft*' fts 'ok' " := (valid_functypes fts).
-
 Hint Constructors valid_functypes.
 
 
@@ -345,17 +345,58 @@ Inductive valid_tabletype : tabletype -> Prop :=
       ⊢tt (limits, elemtype) ok
 
 where "'⊢tt' tt 'ok' " := (valid_tabletype tt).
+Hint Constructors valid_tabletype.
 
 
 (* ----------------------------------------------------------------- *)
 (** *** Memory Types *)
 
+Reserved Notation "'⊢mt' mt 'ok'" (at level 70).
+Inductive valid_memtype : memtype -> Prop :=
+
+  | VMT: forall limits,
+      ⊢l limits ∈ I32.max16 ->      (* spec use literal [2^16] here *)
+      ⊢mt limits ok
+
+where "'⊢mt' mt 'ok' " := (valid_memtype mt).
+Hint Constructors valid_memtype.
+
 (* ----------------------------------------------------------------- *)
 (** *** Global Types *)
+
+Reserved Notation "'⊢gt' gt 'ok'" (at level 70).
+Inductive valid_globaltype : globaltype -> Prop :=
+
+  | VGT: forall mut vt,
+      ⊢gt (mut, vt) ok
+
+where "'⊢gt' gt 'ok' " := (valid_globaltype gt).
+Hint Constructors valid_globaltype.
 
 (* ----------------------------------------------------------------- *)
 (** *** External Types *)
 
+Reserved Notation "'⊢et' et 'ok'" (at level 70).
+Inductive valid_externtype : externtype -> Prop :=
+
+  | VET_func: forall ft,
+      ⊢ft ft ok ->
+      ⊢et (ET_func ft) ok
+
+  | VET_table: forall tt,
+      ⊢tt tt ok ->
+      ⊢et (ET_table tt) ok
+
+  | VET_mem: forall mt,
+      ⊢mt mt ok ->
+      ⊢et (ET_mem mt) ok
+
+  | VET_global: forall gt,
+      ⊢gt gt ok ->
+      ⊢et (ET_global gt) ok
+
+where "'⊢et' et 'ok' " := (valid_externtype et).
+Hint Constructors valid_externtype.
 
 
 (* ================================================================= *)
@@ -519,7 +560,6 @@ Hint Constructors valid_instrs.
 Fixpoint check_instr 
 
 *)
-
 
 
 

@@ -81,6 +81,62 @@ Implicit Type Mi mi moduleinst: moduleinst.
 
 
 (* ================================================================= *)
+(** ** External Typing  "Execuction - Module" *)
+(* https://webassembly.github.io/multi-value/core/exec/modules.html *)
+
+(* It's different with "Validation - Types - External Types"
+   in that these are auxilary typing in runtime, typed against store.
+ *)
+
+Reserved Notation "S '⊢ev' ev '∈' et" (at level 70).
+Inductive valid_externval : store -> externval -> externtype -> Prop :=
+
+  | VEV_func: forall S a fi ft,
+      S.(S_funcs).[a] = Some fi ->
+      fi.(FI_type) = ft ->
+      S ⊢ev EV_func a ∈ ET_func ft
+      
+  | VEV_table: forall S a (fes : list funcelem) n m__opt,
+      length fes = n ->
+      S.(S_tables).[a] = Some {| TI_elem := fes; TI_max  := m__opt; |} ->
+      S ⊢ev EV_table a ∈ ET_table ({| L_min := n; L_max := m__opt |}, funcref)
+
+  (* | VEV_mem: forall S a n m__opt bs, *)
+  (*     length fes = n -> *)
+  (*     length bs = n * 65536 ->  (* 64 Ki *) *)
+  (*     S.(S_mems).[a] = Some {| MEI_data := bs; MEI_max  := m__opt; |} -> *)
+  (*     S ⊢ev EV_mem a ∈ ET_mem {| L_min := n; L_max := m__opt |} *)
+
+  (* | VEV_global: forall S a mut t, *)
+  (*     S.(S_globals).[a] = Some {| GI_value := val; GI_mut  := mut; |} -> *)
+  (*     S ⊢ev EV_global a ∈ ET_global (mut, t) *)
+
+where "S '⊢ev' ev '∈' et"  := (valid_externval S ev et).
+Hint Constructors valid_externval.
+
+
+Reserved Notation "S '⊢fa*' fas '∈' fts" (at level 70).
+Inductive valid_funcaddrs : store -> list funcaddr -> list functype -> Prop :=
+
+  | VFAS: forall S fas fts,
+      Forall2 (fun fa ft => S ⊢ev EV_func fa ∈ ET_func ft) fas fts ->
+      S ⊢fa* fas ∈ fts
+      
+where "S '⊢fa*' fas '∈' fts"  := (valid_funcaddrs S fas fts).
+Hint Constructors valid_funcaddrs.
+
+Reserved Notation "S '⊢ta*' tas '∈' tts" (at level 70).
+Inductive valid_tableaddrs : store -> list tableaddr -> list tabletype -> Prop :=
+
+  | VTAS: forall S tas tts,
+      Forall2 (fun ta tt => S ⊢ev EV_table ta ∈ ET_table tt) tas tts ->
+      S ⊢ta* tas ∈ tts
+      
+where "S '⊢ta*' tas '∈' tts"  := (valid_tableaddrs S tas tts).
+Hint Constructors valid_tableaddrs.
+
+
+(* ================================================================= *)
 (** ** Values and Results *)
 
 Reserved Notation " '⊢v' v ∈ t" (at level 70).
@@ -192,7 +248,9 @@ Inductive valid_moduleinst : store -> moduleinst -> context -> Prop :=
   | VMI: forall S C fts fts' tts fas tas,
       ⊢ft* fts ok ->
 
-      (* TODO: external instances check * 4 instantiated as func/table/mem/global *)
+      (* extern check for func/table/mem/global addr *)
+      S ⊢fa* fas ∈ fts' ->
+      S ⊢ta* tas ∈ tts ->
 
       S ⊢mi {|
               MI_types := fts;
@@ -249,11 +307,11 @@ Hint Constructors valid_funcinsts.
 Reserved Notation "S '⊢ti' ti '∈' tt" (at level 70).
 Inductive valid_tableinst : store -> tableinst -> tabletype -> Prop :=
 
-  | VTI: forall S (fes : list (option funcaddr)) n m__opt, 
+  | VTI: forall S (fes : list funcelem) n m__opt, 
 
       length fes = n ->
 
-      (* valid external? fa n times *)
+      (* valid_externval n times *)
 
       ⊢tt ({| L_min := n; L_max := m__opt |}, funcref) ok ->
 
@@ -548,6 +606,9 @@ Hint Constructors extend_store.
 (* ================================================================= *)
 (** ** Lemmas *)
 
+(* ----------------------------------------------------------------- *)
+(** *** Refl *)
+
 (* Extending funcinsts relation only holds as reflexivity. *)
 Lemma extend_funcinsts_refl: forall fis fis',
     ⊢fi* fis ⪯ fis' <->
@@ -586,6 +647,28 @@ Proof with auto.
   - apply extend_tableinst_refl.
   - apply IHtis.
 Qed.
+
+Lemma extend_store_refl: forall S,
+    ⊢S S ok ->
+    ⊢S S ⪯ S.
+Proof with auto.
+  introv HSok.
+  inverts HSok as HVFIS HVTIS.
+  econstructor; auto.
+  - instantiate (1 := []); instantiate (1 := funcinsts). symmetry; apply app_nil_r...
+  - constructor; simpl.
+    assert (Heq : funcinsts = funcinsts). reflexivity.
+    apply (extend_funcinsts_refl funcinsts funcinsts) in Heq.
+    inverts Heq...
+  - instantiate (1 := []); instantiate (1 := tableinsts). symmetry; apply app_nil_r...
+  - constructor; simpl.
+    specialize (extend_tableinsts_refl tableinsts). intros Heq.
+    inverts Heq...
+Qed.
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Weakening on instance list *)
 
 (* Weakening an appended funcinst list validity to its subset. *)
 Lemma valid_funcinsts_app: forall S funcinsts functypes funcinsts1 funcinsts2,
@@ -645,10 +728,14 @@ Proof.
   - apply IHHForall2_V. apply H4.
 Abort.
 
-(* We haven't completed all module instance validating (typing),
-   They looks like about checking external values/types.
-   So I should this still holds.
-   Why should this hold intuitively? I don't know yet.
+(* ----------------------------------------------------------------- *)
+(** *** Weakening (Unproved and not sure if stated correct) *)
+
+(* Should this hold? 
+   If a MI can be typed as C under a larger store...
+   then the type should be preserved in a smaller store????
+
+   Shouldn't this be reversed?
  *)
 Lemma store_weakening_preserve_type_moduleinst: forall S1 S2 mi C,
     ⊢S S1 ⪯ S2 ->    (* currently not used, might used for typing externals? NOT SURE *)
@@ -657,8 +744,29 @@ Lemma store_weakening_preserve_type_moduleinst: forall S1 S2 mi C,
 Proof with eauto.
   introv HES HVMI2.
   inverts HVMI2.
-  econstructor... 
-Qed.
+  inverts HES.
+  econstructor...
+  - (* VFAS *) admit.
+  - (* VTAS *) admit.
+Admitted.
+
+Lemma store_weakening_preserve_type_externval: forall S1 S2 ev et,
+    ⊢S S1 ⪯ S2 ->  
+    S2 ⊢ev ev ∈ et ->
+    S1 ⊢ev ev ∈ et.
+Proof.
+ Abort. 
+
+Lemma store_weakening_preserve_type_funcaddrs: forall S1 S2 fas fts,
+    ⊢S S1 ⪯ S2 ->  
+    S2 ⊢fa* fas ∈ fts ->
+    S1 ⊢fa* fas ∈ fts.
+Proof.
+  introv HES HVFAS2.
+  inverts HES.
+  inverts HVFAS2 as HForall2. 
+  econstructor.
+Abort. 
 
 Lemma store_weakening_preserve_type_funcinst: forall S1 S2 fi ft,
     ⊢S S1 ⪯ S2 ->  (* required due to preserve moduleinst but might not used by that? *)
@@ -751,24 +859,5 @@ Proof with auto.
   - (* S1 contents - this one add "exists" constraints. *)
     apply extend_funcinsts_refl in HEFIS1'. 
     subst...
-Qed.
-
-                      
-Lemma extend_store_refl: forall S,
-    ⊢S S ok ->
-    ⊢S S ⪯ S.
-Proof with auto.
-  introv HSok.
-  inverts HSok as HVFIS HVTIS.
-  econstructor; auto.
-  - instantiate (1 := []); instantiate (1 := funcinsts). symmetry; apply app_nil_r...
-  - constructor; simpl.
-    assert (Heq : funcinsts = funcinsts). reflexivity.
-    apply (extend_funcinsts_refl funcinsts funcinsts) in Heq.
-    inverts Heq...
-  - instantiate (1 := []); instantiate (1 := tableinsts). symmetry; apply app_nil_r...
-  - constructor; simpl.
-    specialize (extend_tableinsts_refl tableinsts). intros Heq.
-    inverts Heq...
 Qed.
 
