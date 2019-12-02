@@ -1113,6 +1113,262 @@ End ConfigStepTest.
 
 
 (* ================================================================= *)
+(** ** Stepping Demo *)
+
+Definition relation (X: Type) := X -> X -> Prop.
+
+Inductive multi {X : Type} (R : relation X) : relation X :=
+  | multi_refl : forall (x : X), multi R x x
+  | multi_step : forall (x y z : X),
+                    R x y ->
+                    multi R y z ->
+                    multi R x z.
+
+Notation " t '↪*' t' " := (multi step t t') (at level 40).
+
+Axiom multi_R : forall (X : Type) (R : relation X) (x y : X),
+    R x y -> (multi R) x y.
+
+Axiom multi_trans :
+  forall (X : Type) (R : relation X) (x y z : X),
+      multi R x y  ->
+      multi R y z ->
+      multi R x z.
+
+(* ----------------------------------------------------------------- *)
+(** *** Axiom and Lemma *)
+
+Module StepExample.
+
+  Notation zro := I32.zero.
+  Notation one := I32.one.
+  Notation add := IntOp.Add.
+
+  Axiom add_zzz:
+    I32.add zro zro = Some zro.
+
+  Axiom add_ozo:
+    I32.add one zro = Some one.
+
+  Hint Unfold IOp32.binop.
+  Hint Unfold IOp32.to_val.
+  Hint Unfold IVal32.to_val.
+
+  Lemma eval_add_zzz :
+      eval_binop (i32 add) (i32 zro) (i32 zro) = Ok (Some (i32 zro)).
+  Proof with (simpl;auto).
+    simpl; unfold IOp32.binop... rewrite -> add_zzz...
+  Qed.
+
+  Lemma eval_add_ozo :
+      eval_binop (i32 add) (i32 one) (i32 zro) = Ok (Some (i32 one)).
+  Proof with (simpl;auto).
+    simpl; unfold IOp32.binop... rewrite -> add_ozo...
+  Qed.
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Numerics *)
+(*
+      --------------------- add
+        0;0;add     ↪   0                      
+    --------------------------- SC_E 
+      E[0;0;add]    ↪ E[0]
+  E = 1[   ∙   ]add
+ ---------------------------------plugE   ------------- add
+      1;0;0;add;add ↪ 1;0;add              1;0;add  ↪ 1
+   --------------------------------------------------------- trans
+      1;0;0;add;add ↪*                                1
+*)
+
+  Example step_ozz_add_add: forall S F,
+    (S, F, ↑[Const (i32 one)
+            ;Const (i32 zro)
+            ;Const (i32 zro)
+            ;Binop (i32 add)
+            ;Binop (i32 add)])
+                   ↪*
+    (S, F, ↑[Const (i32 one)]).
+  Proof.
+    intros.
+    eapply multi_trans with
+      (S, F, ↑[Const (i32 one); Const (i32 zro); Binop (i32 add)]).
+    - eapply multi_R.
+      eapply SC_E with 
+        (E := E_seq [i32 one] E_hole ↑[Binop (i32 add)])
+        (ainstrs := ↑[Const (i32 zro); Const (i32 zro); Binop (i32 add)])
+        (ainstrs':= ↑[Const (i32 zro)]).
+      apply SC_simple.
+      apply SS_binop__some.
+      apply eval_add_zzz.
+    - eapply multi_R.
+      apply SC_simple.
+      apply SS_binop__some.
+      apply eval_add_ozo.
+  Qed.
+
+(* ----------------------------------------------------------------- *)
+(** *** Loop *)
+(** TODO: would be interesting to show a cases of [val*; Loop bt [Br 0]] where the [bt] take some N [val] in to the label, and left N values by [Br]. *)
+(*
+ (1) ------------------------------------- SC_loop
+      loop [1;0;add;br0] ↪ label [loop...]
+
+                                          --------------------------------- add
+                                           1;0;add     ↪                 1                      
+                      ------------------------------------------------------- SC_E 
+                                         E[1;0;add]    ↪               E[1]     
+                       E = label [loop...][   ∙   ]br0         
+                  (2) -------------------------------------------------------------- plugE
+                           label [loop...] 1;0;add;br0 ↪ label [loop...] 1;br0
+
+
+                                                         --------------------------------------- plugB
+                                                         label [loop...]B0[br0] ↪ loop...
+                                                                    B0 = 1[ ∙ ]ϵ
+                                                    (3) --------------------------------------------- SS_br
+                                                         label [loop...] 1;br0  ↪ loop [1;0;add;br0]
+   ------------------------------------------------------------------------------------------------ trans
+      loop [1;0;add;br0] ↪*                                                       loop [1;0;add;br0]
+*)
+
+  Example step_loop: forall S F,
+    let bt := BT_valtype None in
+    let instrs := [Const (i32 one)
+                  ;Const (i32 zro)
+                  ;Binop (i32 add)
+                  ;Br 0] in
+    (S, F, ↑[Loop bt instrs])
+                   ↪*
+    (S, F, ↑[Loop bt instrs]).
+  Proof with eauto.
+    intros.
+    eapply multi_trans.
+    eapply multi_R.
+    eapply (SC_loop S F 0 0 [] [] bt instrs [])...
+    simpl.
+    eapply multi_trans.
+    - eapply multi_R.
+      eapply SC_E with 
+        (E := E_label 0 ↑[Loop bt instrs] (E_seq [] E_hole ↑[Br 0]))
+        (ainstrs := ↑[Const (i32 one); Const (i32 zro); Binop (i32 add)])
+        (ainstrs':= ↑[Const (i32 one)]).
+      eapply SC_simple.
+      eapply SS_binop__some.
+      apply eval_add_ozo.
+    - simpl. apply multi_R.
+      apply SC_simple.
+      eapply (SS_br 0 ↑[Loop bt instrs] 0 (B_nil [(i32 one)] []) [])...
+  Qed.
+
+(* ----------------------------------------------------------------- *)
+(** *** Function Calls *)
+  Example Mi : moduleinst :=
+    {|
+      MI_types := [[] --> [T_i32]];
+      MI_funcaddrs := [0];
+      MI_tableaddrs := ϵ;
+    |}.
+
+  Example f : func :=
+    {|
+      F_type := 0;
+      F_locals := [T_i32];
+      F_body := [Local_get 0];
+    |}.
+
+  Example fi : funcinst__wasm := 
+    {|
+      FI_type__wasm := [] --> [T_i32];
+      FI_module := Mi;
+      FI_code := f;
+    |}.
+
+  Example F0 : frame :=
+    {|
+      A_locals := ϵ;
+      A_module := Mi;
+    |}.
+
+  Example F : frame :=
+    {|
+      A_locals := [i32 zro];
+      A_module := Mi;
+    |}.
+
+  Example S : store :=
+    {|
+      S_funcs := [FI_wasm fi];
+      S_tables := ϵ;
+    |}.
+
+(* 
+  Example step_call : 
+    (S, F0, ↑[Call 0])
+                   ↪*
+    (S, F0, ↑[Const (i32 zro)]).
+  Proof with eauto.
+    intros.
+    eapply multi_trans.
+    - eapply multi_R. 
+      eapply SC_call. simpl...
+    - eapply multi_trans.
+      + eapply multi_R.
+        eapply (SC_invoke S F0 F [] 0 0 1 [] [T_i32] f.(F_body) fi f.(F_type) f.(F_locals))...
+      + simpl.
+        eapply multi_trans.
+        ++ eapply multi_R.
+           eapply SC_frame.
+           eapply SC_E with
+             (E := E_label 1 ϵ E_hole).
+           eapply SC_local_get. simpl. eauto.
+        ++ simpl.
+           eapply multi_trans.
+           +++
+             eapply multi_R.
+             eapply SC_frame.
+             eapply SC_simple.
+             eapply SS_block__exit with (vals := [i32 zro])...
+           +++ 
+             eapply multi_R.
+             eapply SC_simple.
+             eapply SS_frame__exit with (vals := [i32 zro])...
+  Qed.
+*)
+
+(*
+
+Below is a more compliated example from Prof. Fluet
+
+     F2.locals(x) = v
+     ------------------ SC_local_get
+     S;F2;local.get 0
+     --> S;F2 v
+    ----------------------------------- SC_E [3]
+    S;F2;label_m2 {} [local.get 0] end
+    --> S;F2;label_m2 {} [v] end
+   ------------------------------------------------------------------------------ SC_E [2]
+   S;F1;(i32.const 1) (frame_m2 {F2} label_m2 {} [local.get 0] end end) i32.add]
+   --> S;F1;(i32.const 1) (frame_m2 {F2} label_m2 {} [v] end end) i32.add]
+  ----------------------------------------------------------------------------------------------- SC_E [1]
+  S;F1;label_m1 {} [(i32.const 1) (frame_m2 {F2} label_m2 {} [local.get 0] end end) i32.add] end
+  --> S;F1;label_m1 {} [(i32.const 1) (frame_m2 {F2} label_m2 {} [v] end end) i32.add] end
+-------------------------------------------------------------------------------------------------------------------- SC_frame
+S;F0; [frame_m1 {F1} label_m1 {} [(i32.const 1) (frame_m2 {F2} label_m2 {} [local.get 0] end end) i32.add] end end]
+--> S;F0; [frame_m1 {F1} label_m1 {} [(i32.const 1) (frame_m2 {F2} label_m2 {} [v] end end) i32.add] end end]
+
+#1 with E = label_m1 {} [_] end
+
+#2 with E = (i32.const 1) [_] i32.add
+
+#3 with E = label_m2 {} [_] end
+*)
+
+End StepExample.
+
+
+
+(* ================================================================= *)
 (** ** Archive (Deprecated) *)
 
 (* Originally, I defined Eval Context as a "pre-filled" things.
