@@ -9,7 +9,7 @@
 
 From Wasm Require Export Validation.
 From Wasm Require Export Execution.
-From Wasm Require Export ExtendedValidation.
+From Wasm Require Export ExtendedTyping.
 From Wasm Require Export ProofAux.
 
 (* Coercions are too confusing during proofs. *)

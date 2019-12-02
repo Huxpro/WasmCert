@@ -9,7 +9,7 @@ Structure.v
 Numerics.v
 Validation.v
 Execution.v
-ExtendedValidation.v
+ExtendedTyping.v
 ProofAux.v
 Preservation.v
 Progress.v

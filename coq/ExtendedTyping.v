@@ -1,11 +1,11 @@
 (* ***************************************************************** *)
-(* ExtendedValidation.v                                              *)
+(* ExtendedTyping.v                                                  *)
 (*                                                                   *)
 (* 2019 Xuan Huang                                                   *)
 (* ***************************************************************** *)
 
 (* ################################################################# *)
-(** * Extended Validation *)
+(** * Extended Typing *)
 (** In order to state and prove soundness precisely, the typing rules
     must be extended to the dynamic components of the abstract runtime,
     that is, the store, configurations, and administrative instructions
