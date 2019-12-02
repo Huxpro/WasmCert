@@ -91,9 +91,11 @@ Implicit Type Mi mi moduleinst: moduleinst.
 Reserved Notation "S '⊢ev' ev '∈' et" (at level 70).
 Inductive valid_externval : store -> externval -> externtype -> Prop :=
 
-  | VEV_func: forall S a fi ft,
-      S.(S_funcs).[a] = Some fi ->
-      fi.(FI_type) = ft ->
+  | VEV_func: forall S a ft,
+      (exists fi,
+          S.(S_funcs).[a] = Some fi /\
+          fi.(FI_type) = ft
+      ) ->
       S ⊢ev EV_func a ∈ ET_func ft
       
   | VEV_table: forall S a (fes : list funcelem) n m__opt,
@@ -101,9 +103,8 @@ Inductive valid_externval : store -> externval -> externtype -> Prop :=
       S.(S_tables).[a] = Some {| TI_elem := fes; TI_max  := m__opt; |} ->
       S ⊢ev EV_table a ∈ ET_table ({| L_min := n; L_max := m__opt |}, funcref)
 
-  (* | VEV_mem: forall S a n m__opt bs, *)
-  (*     length fes = n -> *)
-  (*     length bs = n * 65536 ->  (* 64 Ki *) *)
+  (* | VEV_mem: forall S a m__opt bs, *)
+  (*     (exists n, length bs = n * 65536) ->  (* 64 Ki *) *)
   (*     S.(S_mems).[a] = Some {| MEI_data := bs; MEI_max  := m__opt; |} -> *)
   (*     S ⊢ev EV_mem a ∈ ET_mem {| L_min := n; L_max := m__opt |} *)
 
@@ -115,6 +116,10 @@ where "S '⊢ev' ev '∈' et"  := (valid_externval S ev et).
 Hint Constructors valid_externval.
 
 
+(** This is not explicitly defined but occured as
+
+      (S ⊢ func a : func functype)*
+*)
 Reserved Notation "S '⊢fa*' fas '∈' fts" (at level 70).
 Inductive valid_funcaddrs : store -> list funcaddr -> list functype -> Prop :=
 
@@ -125,6 +130,33 @@ Inductive valid_funcaddrs : store -> list funcaddr -> list functype -> Prop :=
 where "S '⊢fa*' fas '∈' fts"  := (valid_funcaddrs S fas fts).
 Hint Constructors valid_funcaddrs.
 
+
+(** This is not explicitly defined but occured as
+
+      ((S ⊢ func fa : func functype)^?)^n
+
+    we definied in terms of [fe] since [funcelem = option funcaddr] 
+*)
+Reserved Notation "S '⊢fe*' fes '∈' fts" (at level 70).
+Inductive valid_funcelems : store -> list funcelem -> list functype -> Prop :=
+
+  | VFES: forall S fes fts,
+      Forall2 (fun fe ft =>
+                 match fe with
+                 | Some fa => S ⊢ev EV_func fa ∈ ET_func ft
+                 | None => True
+                 end
+              ) fes fts ->
+      S ⊢fe* fes ∈ fts
+      
+where "S '⊢fe*' fes '∈' fts"  := (valid_funcelems S fes fts).
+Hint Constructors valid_funcelems.
+
+
+(** This is not explicitly defined but occured as
+
+      (S ⊢ table a : table tabletype)*
+*)
 Reserved Notation "S '⊢ta*' tas '∈' tts" (at level 70).
 Inductive valid_tableaddrs : store -> list tableaddr -> list tabletype -> Prop :=
 
@@ -176,6 +208,7 @@ Inductive valid_result : result -> list valtype -> Prop :=
       ⊢r R_trap ∈ rt
 
 where " '⊢r' res ∈ rt" := (valid_result res rt).
+Hint Constructors valid_result.
 
 
 (* ================================================================= *)
@@ -215,14 +248,129 @@ Fail Definition get_c (i: value) : val :=
 (* ================================================================= *)
 (** ** Store Validity *)
 
+Reserved Notation "  '⊢S' S 'ok'" (at level 70).
+Reserved Notation "S '⊢fi' fi '∈' ft" (at level 70).
+Reserved Notation "S '⊢fi*' fis ∈ fts" (at level 70).
+Reserved Notation "S '⊢ti' ti '∈' tt" (at level 70).
+Reserved Notation "S '⊢ti*' tis ∈ tts" (at level 70).
+Reserved Notation "S '⊢mei' mei '∈' met" (at level 70).
+Reserved Notation "S '⊢gi' gi '∈' gt" (at level 70).
+Reserved Notation "S '⊢exi' exi 'ok'" (at level 70).
+Reserved Notation "S '⊢mi' Mi '∈' C" (at level 70).
+
+(* ----------------------------------------------------------------- *)
+(** *** Store *)
+
+Inductive valid_store : store -> Prop :=
+
+  | VS: forall S funcinsts tableinsts,
+
+      (* why not just ok? *)
+      (exists functypes,  S ⊢fi* funcinsts ∈ functypes) ->
+      (exists tabletypes, S ⊢ti* tableinsts ∈ tabletypes) ->
+
+      S = {|
+        S_funcs := funcinsts;
+        S_tables := tableinsts;
+      |} ->
+      ⊢S S ok
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Function Instances *)
+
+with valid_funcinst : store -> funcinst -> functype -> Prop :=
+
+  | VFI: forall S C ft mi f,
+        ⊢ft ft ok ->
+      S ⊢mi mi ∈ C ->  (* TODO: consider change to [exists C] not sure any diff *)
+      C ⊢f f ∈ ft ->
+      S ⊢fi {| FI_type__wasm := ft; FI_module := mi; FI_code := f |} ∈ ft
+
+
+(** This is not explicitly defined but occured as
+
+      (⊢ funcinst : functype)*
+*)
+with valid_funcinsts : store -> list funcinst -> list functype -> Prop :=
+
+  | VFIS: forall S fis fts,
+      Forall2 (fun funcinst functype => S ⊢fi funcinst ∈ functype) fis fts ->  
+      S ⊢fi* fis ∈ fts
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Host Function Instances *)
+
+(* ----------------------------------------------------------------- *)
+(** *** Table Instances *)
+(*
+   We fixed this rule of core spec: https://webassembly.github.io/spec/core/appendix/properties.html
+   but multi-value is still not merge yet.
+*)
+
+with valid_tableinst : store -> tableinst -> tabletype -> Prop :=
+
+  | VTI: forall S (fes : list funcelem) n m__opt, 
+
+      length fes = n ->
+      (exists fts, S ⊢fe* fes ∈ fts) ->
+      ⊢l {| L_min := n; L_max := m__opt |} ∈ I32.max ->
+      S ⊢ti {|
+          TI_elem := fes;
+          TI_max  := m__opt;
+        |} ∈ ({| L_min := n; L_max := m__opt |}, funcref)
+
+
+(** This is not explicitly defined but occured as
+
+      (⊢ tableinst : tabletype)*
+*)
+with valid_tableinsts : store -> list tableinst -> list tabletype -> Prop :=
+
+  | VTIS: forall S tis tts,
+      Forall2 (fun tableinst tabletype => S ⊢ti tableinst ∈ tabletype) tis tts ->  
+      S ⊢ti* tis ∈ tts
+
+
 (* ----------------------------------------------------------------- *)
 (** *** Memory Instances *)
+
+with valid_meminst : store -> meminst -> memtype -> Prop :=
+
+  | VMEI: forall S bs n m__opt,
+      length bs = n ->
+      ⊢l {| L_min := n; L_max := m__opt |} ∈ I32.max16 ->
+      S ⊢mei {|
+              MEI_data := bs;
+              MEI_max := m__opt
+            |} ∈ {| L_min := n; L_max := m__opt |}
+
 
 (* ----------------------------------------------------------------- *)
 (** *** Global Instances *)
 
+with valid_globalinst : store -> globalinst -> globaltype -> Prop :=
+
+  | VGI: forall S val mut,
+      let t := type_of val in
+      S ⊢gi {|
+              GI_value := val;
+              GI_mut := mut;
+            |} ∈ (mut, t)
+
+
 (* ----------------------------------------------------------------- *)
 (** *** Export Instances *)
+
+with valid_exportinst : store -> exportinst -> Prop :=
+
+  | VEXI: forall S ev name,
+      (exists et, S ⊢ev ev ∈ et) ->
+      S ⊢exi {|
+              EXI_name := name;
+              EXI_value := ev;
+            |} ok
 
 (* ----------------------------------------------------------------- *)
 (** *** Module Instances *)
@@ -242,8 +390,7 @@ Fail Definition get_c (i: value) : val :=
    "When spelling out a context, empty fields are omitted."
 *)
 
-Reserved Notation "S '⊢mi' Mi '∈' C" (at level 70).
-Inductive valid_moduleinst : store -> moduleinst -> context -> Prop :=
+with valid_moduleinst : store -> moduleinst -> context -> Prop :=
 
   | VMI: forall S C fts fts' tts fas tas,
       ⊢ft* fts ok ->
@@ -265,132 +412,26 @@ Inductive valid_moduleinst : store -> moduleinst -> context -> Prop :=
                    C_return := None;
                  |}
 
-where "S '⊢mi' Mi '∈' C"  := (valid_moduleinst S Mi C).
+where "  '⊢S' S 'ok' " := (valid_store S)
+  and "S '⊢fi' fi '∈' ft"  := (valid_funcinst S fi ft)
+  and "S '⊢fi*' fis ∈ fts" := (valid_funcinsts S fis fts)
+  and "S '⊢ti' ti ∈ tt" := (valid_tableinst S ti tt)
+  and "S '⊢ti*' tis ∈ tts" := (valid_tableinsts S tis tts)
+  and "S '⊢mei' mei '∈' met"  := (valid_meminst S mei met)
+  and "S '⊢gi' gi '∈' gt"  := (valid_globalinst S gi gt)
+  and "S '⊢exi' exi 'ok'"  := (valid_exportinst S exi)
+  and "S '⊢mi' Mi '∈' C"  := (valid_moduleinst S Mi C).
 
-(* ----------------------------------------------------------------- *)
-(** *** Function Instances *)
-
-Reserved Notation "S '⊢fi' fi '∈' ft" (at level 70).
-Inductive valid_funcinst : store -> funcinst -> functype -> Prop :=
-
-  | VFI: forall S C ft mi f,
-        ⊢ft ft ok ->
-      S ⊢mi mi ∈ C ->
-      C ⊢f f ∈ ft ->
-      S ⊢fi {| FI_type__wasm := ft; FI_module := mi; FI_code := f |} ∈ ft
-
-where "S '⊢fi' fi '∈' ft"  := (valid_funcinst S fi ft).
-Hint Constructors valid_funcinst.
-
-
-(** This is not explicitly defined but occured as
-
-      (⊢ funcinst : functype)*
-*)
-Reserved Notation "S '⊢fi*' fis ∈ fts" (at level 70).
-Inductive valid_funcinsts : store -> list funcinst -> list functype -> Prop :=
-
-  | VFIS: forall S fis fts,
-      Forall2 (fun funcinst functype => S ⊢fi funcinst ∈ functype) fis fts ->  
-      S ⊢fi* fis ∈ fts
-
-where "S '⊢fi*' fis ∈ fts" := (valid_funcinsts S fis fts).
-Hint Constructors valid_funcinsts.
-
-
-(* ----------------------------------------------------------------- *)
-(** *** Host Function Instances *)
-
-(* ----------------------------------------------------------------- *)
-(** *** Table Instances *)
-
-Reserved Notation "S '⊢ti' ti '∈' tt" (at level 70).
-Inductive valid_tableinst : store -> tableinst -> tabletype -> Prop :=
-
-  | VTI: forall S (fes : list funcelem) n m__opt, 
-
-      length fes = n ->
-
-      (* valid_externval n times *)
-
-      ⊢tt ({| L_min := n; L_max := m__opt |}, funcref) ok ->
-
-      S ⊢ti {|
-          TI_elem := fes;
-          TI_max  := m__opt;
-        |} ∈ ({| L_min := n; L_max := m__opt |}, funcref)
-
-where "S '⊢ti' ti '∈' tt"  := (valid_tableinst S ti tt).
-Hint Constructors valid_tableinst.
-
-Definition gen_tabletype (ti: tableinst) : tabletype :=
-  let n := length ti.(TI_elem) in
-  let m__opt := ti.(TI_max) in
-  ({| L_min := n; L_max := m__opt  |}, funcref).
-
-Lemma valid_gen_tabletype : forall S tableinst,
-    S ⊢ti tableinst ∈ gen_tabletype(tableinst).
-Proof with auto.
-  intros.
-  destruct tableinst.
-  unfold gen_tabletype. simpl.
-  constructor...
-  constructor.
-  destruct TI_max.
-  - apply VL__some. 
-    + (* need all I32.t less than I32.max *) skip.
-    + skip.
-    + skip.
-  - apply VL__none. admit.
-Admitted.
-
-(** This is not explicitly defined but occured as
-
-      (⊢ tableinst : tabletype)*
-*)
-Reserved Notation "S '⊢ti*' tis ∈ tts" (at level 70).
-Inductive valid_tableinsts : store -> list tableinst -> list tabletype -> Prop :=
-
-  | VTIS: forall S tis tts,
-      Forall2 (fun tableinst tabletype => S ⊢ti tableinst ∈ tabletype) tis tts ->  
-      S ⊢ti* tis ∈ tts
-
-where "S '⊢ti*' tis ∈ tts" := (valid_tableinsts S tis tts).
-Hint Constructors valid_tableinsts.
-
-Definition gen_tabletypes (tis: list tableinst) : list tabletype :=
-  map gen_tabletype tis.
-
-Lemma valid_gen_tabletypes : forall S tableinsts,
-    S ⊢ti* tableinsts ∈ gen_tabletypes(tableinsts).
-Proof.
-  intros.
-  constructor.
-  induction tableinsts; constructor.
-  - apply valid_gen_tabletype.
-  - apply IHtableinsts.
-Qed.
-
-(* ----------------------------------------------------------------- *)
-(** *** Store *)
-
-Reserved Notation "'⊢S' S 'ok'" (at level 70).
-Inductive valid_store : store -> Prop :=
-
-  | VS: forall S funcinsts tableinsts functypes tabletypes,
-
-      (* why not just ok? *)
-      S ⊢fi* funcinsts ∈ functypes ->
-      S ⊢ti* tableinsts ∈ tabletypes ->
-
-      S = {|
-        S_funcs := funcinsts;
-        S_tables := tableinsts;
-      |} ->
-      ⊢S S ok
-
-where "'⊢S' S 'ok' " := (valid_store S).
 Hint Constructors valid_store.
+Hint Constructors valid_funcinst.
+Hint Constructors valid_funcinsts.
+Hint Constructors valid_tableinst.
+Hint Constructors valid_tableinsts.
+Hint Constructors valid_meminst.
+Hint Constructors valid_globalinst.
+Hint Constructors valid_exportinst.
+Hint Constructors valid_moduleinst.
+
 
 
 (* ================================================================= *)
@@ -504,7 +545,6 @@ where "S_C '⊢a' ainstr '∈' ft " := (valid_admin_instr S_C ainstr ft)
   and "S_ret '⊢T' T '∈' ret " := (valid_thread S_ret T ret)
   and "'⊢c' cfg '∈' rt " := (valid_config cfg rt).
 
-
 Hint Constructors valid_admin_instr.
 Hint Constructors valid_admin_instrs.
 Hint Constructors valid_frame.
@@ -573,11 +613,39 @@ Inductive extend_tableinsts : list tableinst -> list tableinst -> Prop :=
 where "⊢ti* tis1 '⪯' tis2 " := (extend_tableinsts tis1 tis2).
 Hint Constructors extend_tableinst.
 
+
 (* ----------------------------------------------------------------- *)
 (** *** Memory Instance *)
 
+Reserved Notation "⊢mei mei1 '⪯' mei2 " (at level 70).
+Inductive extend_meminst : meminst -> meminst -> Prop :=
+
+  | EMEI: forall bs1 bs2 n1 n2 m__opt,
+      length bs1 = n1 ->
+      length bs2 = n2 ->
+      n1 <= n2 ->
+      ⊢mei {| MEI_data := bs1; MEI_max := m__opt |}
+         ⪯ {| MEI_data := bs2; MEI_max := m__opt |}
+
+where "⊢mei mei1 '⪯' mei2 " := (extend_meminst mei1 mei2).
+Hint Constructors extend_meminst.
+
 (* ----------------------------------------------------------------- *)
 (** *** Global Instance *)
+(**
+    the spec defined as same [t] and [c1 = c2],
+    we simply defined as same [val].
+ *)
+
+Reserved Notation "⊢gi gi1 '⪯' gi2 " (at level 70).
+Inductive extend_globalinst : globalinst -> globalinst -> Prop :=
+
+  | EGI: forall val,
+      ⊢gi {| GI_value := val; GI_mut := GT_var |}
+        ⪯ {| GI_value := val; GI_mut := GT_var |}
+
+where "⊢gi gi1 '⪯' gi2 " := (extend_globalinst gi1 gi2).
+Hint Constructors extend_globalinst.
 
 (* ----------------------------------------------------------------- *)
 (** *** Store *)
@@ -607,7 +675,44 @@ Hint Constructors extend_store.
 (** ** Lemmas *)
 
 (* ----------------------------------------------------------------- *)
-(** *** Refl *)
+(** *** Tabletype *)
+
+Definition gen_tabletype (ti: tableinst) : tabletype :=
+  let n := length ti.(TI_elem) in
+  let m__opt := ti.(TI_max) in
+  ({| L_min := n; L_max := m__opt  |}, funcref).
+
+Lemma valid_gen_tabletype : forall S tableinst,
+    S ⊢ti tableinst ∈ gen_tabletype(tableinst).
+Proof with auto.
+  intros.
+  destruct tableinst.
+  unfold gen_tabletype. simpl.
+  econstructor... admit.
+  destruct TI_max.
+  - apply VL__some. 
+    + (* need all I32.t less than I32.max *) skip.
+    + skip.
+    + skip.
+  - apply VL__none. admit.
+Admitted.
+
+Definition gen_tabletypes (tis: list tableinst) : list tabletype :=
+  map gen_tabletype tis.
+
+Lemma valid_gen_tabletypes : forall S tableinsts,
+    S ⊢ti* tableinsts ∈ gen_tabletypes(tableinsts).
+Proof.
+  intros.
+  constructor.
+  induction tableinsts; constructor.
+  - apply valid_gen_tabletype.
+  - apply IHtableinsts.
+Qed.
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Extension Refl *)
 
 (* Extending funcinsts relation only holds as reflexivity. *)
 Lemma extend_funcinsts_refl: forall fis fis',
@@ -789,8 +894,7 @@ Proof.
   introv HES HVTI2.
   inverts HVTI2 as HVTT.
   remember (length fes) as n; symmetry in Heqn.
-  econstructor; assumption.
-Qed.
+Admitted.
 
 Lemma store_weakening_preserve_type_funcinsts: forall S1 S2 fis fts,
     ⊢S S1 ⪯ S2 ->
@@ -829,7 +933,7 @@ Lemma store_weakening: forall S1 S2,
     ⊢S S1 ok.
 Proof with auto.
   introv HSok2 HES.
-  inverts HSok2 as HVFIS2 HVTIS2.
+  inverts HSok2 as (functypes & HVFIS2) (tabletypes & HVTIS2).
   inverts keep HES as HFIeq HEFIS1' HTIeq HETIS1'; simpl in *.
   remember {| S_funcs := funcinsts; S_tables := tableinsts |} as S2.
   destruct S1. 
@@ -845,11 +949,13 @@ Proof with auto.
 
   econstructor.
   - (* S1 VFIS *)
-    apply store_weakening_preserve_type_funcinsts with S2.
+    eexists.
+    eapply store_weakening_preserve_type_funcinsts with S2.
     + assumption.
     (* + apply extend_funcinsts_refl in HEFIS1'. apply HEFIS1'. *)
     + apply HVFIS21.
   - (* S1 VTIS *) 
+    eexists.
     apply store_weakening_preserve_type_tableinsts with S2.
     + assumption.
     (* + instantiate (1 := tableinsts1). subst... *)

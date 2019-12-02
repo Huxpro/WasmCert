@@ -140,27 +140,20 @@ Lemma F_vals_R: forall F vals rt,
 Proof with eauto.
   introv HForall2.
   rewrite <- R_vals_vals...
-  econstructor.
-  econstructor...
 Qed.
 
 Lemma F_ϵ_R: forall F,
     ⊢R (F, []) ∈ [].
-Proof.
+Proof with eauto.
   intros.
-  rewrite <- R_vals_ϵ.
-  econstructor.
-  econstructor.
-  econstructor.
+  rewrite <- R_vals_ϵ...
 Qed.
 
 Lemma F_Trap_R: forall F rt,
     ⊢R (F, [Trap]) ∈ rt.
-Proof.
+Proof with eauto.
   intros.
-  asserts_rewrite ([Trap] = !R_trap). reflexivity.
-  econstructor.
-  econstructor.
+  asserts_rewrite ([Trap] = !R_trap)... 
 Qed.
 
 
