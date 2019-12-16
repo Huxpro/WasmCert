@@ -98,16 +98,21 @@ Notation resulttype := (list valtype).
 (* ----------------------------------------------------------------- *)
 (** *** Function Types *)
 
+Inductive functype := FT (_ _: resulttype). 
+(*
 Record functype :=
   {
     FT_ins  : resulttype;
     FT_outs : resulttype;
   }.
+*)
 
 Module FunctypeNotations.
 
-  Notation "ts1 --> ts2" :=
-    ({| FT_ins := ts1; FT_outs := ts2|})
+  (* Notation "ts1 --> ts2" := *)
+  (*   ({| FT_ins := ts1; FT_outs := ts2|}) *)
+
+  Notation "ts1 --> ts2" := (FT ts1 ts2)
     (at level 30, right associativity) : wasm_scope.
   Open Scope wasm_scope.
 
@@ -120,7 +125,7 @@ Module TypesTest.
 
   Example ex_res1: resulttype := [].
   Example ex_res2: resulttype := [T_i32].
-  Example ex_fun: functype := {| FT_ins := [T_i32]; FT_outs := [T_i32] |}.
+  Example ex_fun: functype := FT [T_i32] [T_i32]. 
 
   (* Func Notation Testing *)
 

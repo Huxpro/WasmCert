@@ -262,7 +262,10 @@ Reserved Notation "'⊢l' l '∈' k" (at level 70).
 Inductive valid_limit : limits -> I32.t -> Prop :=
 
   (* No max limits *)
-  (* should it be [I32. <=] or Coq [<=] ? *)
+  (* should it be [I32. <=] or Coq [<=] ?
+     anyways we need axiomize this...
+     in the paper we simply use Coq [<=]
+   *)
 
   | VL__none: forall n k,
       I32.le_u n k = true ->
@@ -727,6 +730,9 @@ Fixpoint check_expr (C : context) (e : expr) (tr : resulttype) :=
 
 (** Issue on "validation rule for function is inaccurate"
   * https://github.com/WebAssembly/spec/issues/1072
+
+  * we need to update this rule with just locals* and labels and maybe return
+  * the "replace" is a stronger requirement that we might be able to show
   *)
 
 Reserved Notation "C '⊢f' f ∈ ft" (at level 70).

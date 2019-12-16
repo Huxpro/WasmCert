@@ -1386,6 +1386,10 @@ Qed.
    ------------------------------
       S, C' ⊢   ainstrs  : ts3 --> ts4
 
+      S, C  ⊢ E : labels rts, ts3 --> ts4 |> ts1 --> ts2
+
+      let C' = C, labels (compute_label E) in
+
    where C' = C, labels... (as deep as the numbers of labels in E)
       we have to include this information as well.
       the numbers of labels in E. 

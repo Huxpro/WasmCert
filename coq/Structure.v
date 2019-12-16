@@ -30,13 +30,13 @@ Export ListNotations.
     currently we generalized both indices and vec as unbounded nat.
   *)
 
-Definition typeidx := nat.
-Definition funcidx := nat.
-Definition tableidx := nat.
-Definition memidx := nat.
-Definition globalidx := nat.
-Definition localidx := nat.
-Definition labelidx := nat.
+Notation typeidx := nat.
+Notation funcidx := nat.
+Notation tableidx := nat.
+Notation memidx := nat.
+Notation globalidx := nat.
+Notation localidx := nat.
+Notation labelidx := nat.
 
 
 
@@ -153,11 +153,11 @@ Module IOp64 := IntOp.
 Module FOp32 := FloatOp.
 Module FOp64 := FloatOp.
 
-Definition unop := @op IOp32.unop IOp64.unop FOp32.unop FOp64.unop.
-Definition binop := @op IOp32.binop IOp64.binop FOp32.binop FOp64.binop.
-Definition testop := @op IOp32.testop IOp64.testop FOp32.testop FOp64.testop.
-Definition relop := @op IOp32.relop IOp64.relop FOp32.relop FOp64.relop.
-Definition cvtop := @op IOp32.cvtop IOp64.cvtop FOp32.cvtop FOp64.cvtop.
+Definition unop := op IOp32.unop IOp64.unop FOp32.unop FOp64.unop.
+Definition binop := op IOp32.binop IOp64.binop FOp32.binop FOp64.binop.
+Definition testop := op IOp32.testop IOp64.testop FOp32.testop FOp64.testop.
+Definition relop := op IOp32.relop IOp64.relop FOp32.relop FOp64.relop.
+Definition cvtop := op IOp32.cvtop IOp64.cvtop FOp32.cvtop FOp64.cvtop.
 
 
 (* ----------------------------------------------------------------- *)

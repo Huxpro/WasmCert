@@ -37,7 +37,7 @@ Inductive result :=
 (* ----------------------------------------------------------------- *)
 (** *** Addresses *)
 
-Definition addr := nat.
+Notation addr := nat.
 Notation funcaddr := addr.
 Notation tableaddr := addr.
 Notation memaddr := addr.
