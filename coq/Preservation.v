@@ -14,6 +14,7 @@ From Wasm Require Export ProofAux.
 
 (* Coercions are too confusing during proofs. *)
 Set Printing Coercions.
+Set Nested Proofs Allowed.
 
 (* Sometimes. *)
 (* Unset Printing Notations. *)
