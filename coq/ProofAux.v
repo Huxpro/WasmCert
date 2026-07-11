@@ -322,9 +322,11 @@ Proof.
   intros X l x.
   induction l.
   - reflexivity.
-  - simpl.
-    rewrite IHl.
-    reflexivity.
+  - destruct l.
+    + reflexivity.
+    + simpl in *.
+      rewrite IHl.
+      reflexivity.
 Qed.
 
 Lemma unsnoc_some_eq_snoc_app: forall {X: Type} {xs xs' : list X} {x: X},
