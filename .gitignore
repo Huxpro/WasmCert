@@ -2,6 +2,8 @@
 .*.aux
 *.glob
 *.vo
+*.vok
+*.vos
 .\#*
 archive
 doc

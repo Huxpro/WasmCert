@@ -12,6 +12,8 @@ From Wasm Require Export Execution.
 From Wasm Require Export ExtendedTyping.
 From Wasm Require Export ProofAux.
 
+Set Nested Proofs Allowed.
+
 (* Coercions are too confusing during proofs. *)
 Set Printing Coercions.
 
