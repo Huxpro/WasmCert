@@ -1522,31 +1522,23 @@ Proof with eauto.
 Qed.
 
 (*
-      S,C  ⊢ E[ainstrs] : ts1 --> ts2
-      S,C' ⊢   ainstrs  : ts3 --> ts4  
-      S,C' ⊢   ainstrs' : ts3 --> ts4     ⊢ C ⪯ C'
-   ----------------------------------------------------
+      S,C' ⊢   ainstrs' : ts3 --> ts4
+      S,C  ⊢ E : (C', ts3 --> ts4) => (ts1 --> ts2)
+   -----------------------------------------------------
       S,C  ⊢ E[ainstrs']: ts1 --> ts2
 
-  This can only be proved if we include the inforamtion ,
-  we might need some thing like:
-
-      ⊢ C ⪯ C' <to> E
+  [valid_eval_context] ties every extension of [C] to the corresponding
+  [E_label] and retains the surrounding typing derivations.
 
 *)
-Lemma plug_E_same : forall S C C' E ainstrs ainstrs' ts1 ts2 ts3 ts4,
-   ⊢C C ⪯ C' ->
-   (S, C) ⊢a* (plug__E E ainstrs) ∈ ts1 --> ts2 ->
-   (S, C') ⊢a* ainstrs ∈ ts3 --> ts4 ->
+Lemma plug_E_same : forall S C C' E ainstrs' ts1 ts2 ts3 ts4,
+   valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
    (S, C') ⊢a* ainstrs' ∈ ts3 --> ts4 ->
    (S, C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts2.
-Proof with eauto.
-  introv HEC Hin Hin' Hplug.
-  dependent induction E; simpl in *. 
-  - (* E_hole *) admit.
-  - (* E_seq *) admit.
-  - (* E_label *) admit.
-Admitted.
+Proof.
+  intros.
+  eapply plug_E_recompose; eassumption.
+Qed.
 
 
 (*
