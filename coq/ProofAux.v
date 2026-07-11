@@ -724,8 +724,9 @@ Proof with auto.
   induction HVIS.
   - simpl. constructor.
   - rewrite up_app.
-    eapply VAIS_snoc...
-    constructor...
+    eapply VAIS_snoc.
+    + exact IHHVIS.
+    + constructor. exact H.
 Qed.
 
 
