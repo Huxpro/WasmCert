@@ -778,8 +778,8 @@ Proof with eauto.
       edestruct IHHVAISapp as (ts4' & HV1 & HV2)...
   --- (* <- *)
   intros (ts2 & HVAIS0 & HVAIS1).
-  induction HVAIS1.
-  - rewrite app_nil_r...
+  dependent induction HVAIS1 generalizing ainstrs0 ts1.
+  - rewrite app_nil_r. exact HVAIS0.
   - rewrite <- app_assoc.
     eapply VAIS_snoc...
 Qed.
