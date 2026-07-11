@@ -1444,6 +1444,7 @@ Proof with eauto.
     + exact Hcontext.
   Unshelve.
   all: eauto.
+  all: match goal with |- ?G => idtac "remaining context goal:" G end.
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
