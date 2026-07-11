@@ -781,7 +781,7 @@ Proof with eauto.
   gen ainstrs0 ts1.
   dependent induction HVAIS1; intros.
   - rewrite app_nil_r. exact HVAIS0.
-  - rewrite <- app_assoc.
+  - rewrite app_assoc.
     eapply VAIS_snoc...
 Qed.
 
