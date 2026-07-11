@@ -343,8 +343,8 @@ Proof with auto.
          | None => None
          end = Some (xs', x)) in Heq.
       destruct (unsnoc (b :: xs)) as [[tail car] |] eqn:Htail.
-      * inverts Heq.
-        specialize (IHxs xs' x eq_refl).
+      * specialize (IHxs tail car eq_refl).
+        inverts Heq.
         rewrite IHxs.
         reflexivity.
       * inverts Heq.
