@@ -1614,8 +1614,12 @@ Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
     (S',C) ⊢a* ainstrs' ∈ ts1 --> ts2.
 Proof with eauto using same_context_except_labels_refl.
   introv HVS HVA HVAIS HSC.
-  eapply preservation_generalized
-    with (CF := C) (C := C); eauto.
+  eapply preservation_generalized with (CF := C) (C := C).
+  - exact HVS.
+  - exact HVA.
+  - apply same_context_except_labels_refl.
+  - exact HVAIS.
+  - exact HSC.
 Qed.
 
 (* ================================================================= *)
