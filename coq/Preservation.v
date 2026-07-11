@@ -1594,7 +1594,13 @@ Proof with eauto using same_context_except_labels_trans.
       as (HES & HVS' & HVA' & Hinner')...
     splits...
     eapply plug_E_same; eauto.
-  Show Existentials.
+  - (* SC_trap__E *)
+    splits...
+    + apply (extend_store_refl _ HVS).
+    + rewrite <- (app_nil_l [Trap]).
+      eapply VAIS_snoc with (ts0 := []) (ts := ts1).
+      * simpl. constructor.
+      * constructor.
 Qed.
 
 Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
