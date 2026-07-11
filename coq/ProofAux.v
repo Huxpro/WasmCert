@@ -904,6 +904,7 @@ Proof with eauto.
     + rewrite app_nil_r.
       apply IHvals.
     + constructor. constructor.
+  Show Existentials.
 Qed.
 
 
