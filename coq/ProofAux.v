@@ -46,25 +46,22 @@ Lemma app_eq_same_len : forall {X: Type} (xs xs' xs1 xs2: list X),
     xs = xs' /\ xs1 = xs2.
 Proof with auto.
   introv Hlen Happ.
-  gen xs'.
-  induction xs; introv Hlen Happ.
+  gen xs' xs1 xs2.
+  induction xs; intros xs' xs1 xs2 Hlen Happ.
   - destruct xs'.
     + splits...
-    + simpl in Happ.
-      assert (length (x :: xs') = 0).
-      { rewrite <- Hlen.
-        apply app_eq_nil in Happ.
-        destruct Happ; subst... }
-      inverts H.
+    + assert (Hlength := f_equal (@length X) Happ).
+      simpl in Hlength.
+      rewrite app_length in Hlength.
+      omega.
   - destruct xs'.
-    + assert (length (x :: xs) = 0).
-      { rewrite Hlen.
-        apply app_eq_nil in Happ.
-        destruct Happ; subst... }
-      inverts H.
+    + assert (Hlength := f_equal (@length X) Happ).
+      simpl in Hlength.
+      rewrite app_length in Hlength.
+      omega.
     + simpl in Happ.
-      inverts Happ.
-      destruct (IHxs xs' Hlen H1).
+      injection Happ as Hhead Htail.
+      destruct (IHxs xs' xs1 xs2 Hlen Htail).
       subst...
 Qed.
 
