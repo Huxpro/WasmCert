@@ -338,11 +338,9 @@ Proof with auto.
   - destruct xs as [|b xs].
     + simpl in Heq. inverts Heq. reflexivity.
     + simpl in Heq.
-      remember (unsnoc (b :: xs)) as tail.
-      destruct tail as [[tail car] |].
+      destruct (unsnoc (b :: xs)) as [[tail car] |] eqn:Htail.
       * inverts Heq.
-        symmetry in Heqtail.
-        apply IHxs in Heqtail.
+        apply IHxs in Htail.
         subst.
         reflexivity.
       * inverts Heq.
