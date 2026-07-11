@@ -37,14 +37,36 @@ Qed.
 Lemma cons_to_app: forall {X: Type} (x: X) (xs: list X),
     x :: xs = [x] ++ xs.
 Proof.
-  Admitted.
+  reflexivity.
+Qed.
 
 Lemma app_eq_same_len : forall {X: Type} (xs xs' xs1 xs2: list X), 
     length xs1 = length xs2 ->
     xs ++ xs1 = xs' ++ xs2 ->
     xs = xs' /\ xs1 = xs2.
 Proof with auto.
-Admitted.
+  introv Hlen Happ.
+  gen xs'.
+  induction xs; introv Hlen Happ.
+  - destruct xs'.
+    + splits...
+    + simpl in Happ.
+      assert (length (x :: xs') = 0).
+      { rewrite <- Hlen.
+        apply app_eq_nil in Happ.
+        destruct Happ; subst... }
+      inverts H.
+  - destruct xs'.
+    + assert (length (x :: xs) = 0).
+      { rewrite Hlen.
+        apply app_eq_nil in Happ.
+        destruct Happ; subst... }
+      inverts H.
+    + simpl in Happ.
+      inverts Happ.
+      destruct (IHxs xs' Hlen H1).
+      subst...
+Qed.
 
 
 
@@ -281,30 +303,51 @@ Lemma unsnoc_neq: forall {A : Type} (l1 l2 : list A),
   unsnoc l1 <> unsnoc l2 ->
   l1 <> l2.
 Proof. 
-  Admitted.
+  intros A l1 l2 Hneq Heq.
+  subst.
+  apply Hneq.
+  reflexivity.
+Qed.
 
 Lemma unsnoc_car_neq: forall {A : Type} (l1 l2 : list A), 
   unsnoc_car l1 <> unsnoc_car l2 ->
   l1 <> l2.
 Proof. 
-  Admitted.
+  intros A l1 l2 Hneq Heq.
+  subst.
+  apply Hneq.
+  reflexivity.
+Qed.
 
 Lemma unsnoc_snoc_app_some : forall {X: Type} (l: list X) x,
     unsnoc (l ++ [x]) = Some (l, x).
 Proof. 
-  Admitted.
+  intros X l x.
+  induction l.
+  - reflexivity.
+  - simpl.
+    rewrite IHl.
+    reflexivity.
+Qed.
 
 Lemma unsnoc_some_eq_snoc_app: forall {X: Type} {xs xs' : list X} {x: X},
   unsnoc xs = Some (xs', x) ->
   xs = xs' ++ [x].
 Proof with auto.
-  destruct xs;
-    introv Heq.
+  induction xs as [|a xs]; introv Heq.
   - simpl in Heq. inverts Heq.
-  - gen x xs'. induction xs; intros.
-    + simpl in Heq. inverts Heq. apply app_nil_l.
-    + admit.
-Admitted.
+  - destruct xs as [|b xs].
+    + simpl in Heq. inverts Heq. reflexivity.
+    + simpl in Heq.
+      remember (unsnoc (b :: xs)) as tail.
+      destruct tail as [[tail car] |].
+      * inverts Heq.
+        symmetry in Heqtail.
+        apply IHxs in Heqtail.
+        subst.
+        reflexivity.
+      * inverts Heq.
+Qed.
 
 (* combine *)
 Lemma exists_snoc_app: forall {X: Type} (xs : list X), 
