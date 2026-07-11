@@ -1428,8 +1428,8 @@ Proof with eauto.
       try (symmetry in Heq; invert_eq_snoc_app Heq).
     inverts HVAI as Hcont Hbody.
     destruct (IHE _ _ _ _ Hbody)
-      as (C' & ts3 & ts4 & Hinner & Hcontext).
-    exists C' ts3 ts4...
+      as (C' & ts__in & ts__out & Hinner & Hcontext).
+    exists C' ts__in ts__out...
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
