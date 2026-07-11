@@ -344,7 +344,7 @@ Proof with auto.
          end = Some (xs', x)) in Heq.
       destruct (unsnoc (b :: xs)) as [[tail car] |] eqn:Htail.
       * inverts Heq.
-        specialize (IHxs tail car eq_refl).
+        specialize (IHxs xs' x eq_refl).
         rewrite IHxs.
         reflexivity.
       * inverts Heq.
