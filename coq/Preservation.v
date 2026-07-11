@@ -1426,7 +1426,9 @@ Proof with eauto.
     destruct (IHE _ _ _ _ HE) as (C' & ts5 & ts6 & Hinner & Hcontext).
     exists C' ts5 ts6.
     split; [exact Hinner |].
-    eapply VEC_seq; eauto.
+    exact (@VEC_seq S C C' vals E ainstrs
+                    ts1 ts3 ts5 ts6 ts4 ts2
+                    Hvals Hcontext Hrest).
   - inverts HVAIS as HVAIS' HVAI Heq;
       try (symmetry in Heq; invert_eq_snoc_app Heq).
     inverts HVAIS'.
@@ -1438,13 +1440,9 @@ Proof with eauto.
     exists C' ts__in ts__out.
     split; [exact Hinner |].
     rewrite app_nil_r.
-    eapply VEC_label with (ts0 := ts0) (ts1 := ts1) (ts2 := ts4).
-    + reflexivity.
-    + exact Hcont.
-    + exact Hcontext.
-  Unshelve.
-  all: eauto.
-  all: match goal with |- ?G => idtac "remaining context goal:" G end.
+    exact (@VEC_label S C C' (length ts1) cont E
+                      ts0 ts1 ts4 ts__in ts__out
+                      eq_refl Hcont Hcontext).
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
