@@ -1432,7 +1432,10 @@ Proof with eauto.
   - inverts HVAIS as HVAIS' HVAI Heq;
       try (symmetry in Heq; invert_eq_snoc_app Heq);
       try match goal with
-          | Hnil : _ ++ [_] = [] |- _ => invert_eq_snoc_app Hnil
+          | Hnil : _ ++ [_] = [] |- _ =>
+              apply app_eq_nil in Hnil;
+              destruct Hnil as [_ Hnil];
+              inversion Hnil
           end.
     inverts HVAIS'.
     simpl in *.
