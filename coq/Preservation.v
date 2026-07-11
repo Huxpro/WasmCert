@@ -1382,6 +1382,70 @@ Proof with eauto.
   eapply EC with (rts := rts ++ [ts]).
 Qed. 
 
+(* A typing derivation for an evaluation context.  Unlike [extend_context],
+   this relation records exactly which labels are introduced by [E], as well
+   as the typing derivations for the prefix, suffix, and continuations around
+   the hole. *)
+Inductive valid_eval_context (S : store) :
+  context -> eval_context -> context ->
+  resulttype -> resulttype -> resulttype -> resulttype -> Prop :=
+  | VEC_hole : forall C ts1 ts2,
+      valid_eval_context S C E_hole C ts1 ts2 ts1 ts2
+
+  | VEC_seq : forall C C' vals E ainstrs
+                     ts1 ts2 ts3 ts4 ts5 ts6,
+      (S,C) ⊢a* ⇈vals ∈ ts1 --> ts2 ->
+      valid_eval_context S C E C' ts3 ts4 ts2 ts5 ->
+      (S,C) ⊢a* ainstrs ∈ ts5 --> ts6 ->
+      valid_eval_context S C (E_seq vals E ainstrs) C'
+                         ts3 ts4 ts1 ts6
+
+  | VEC_label : forall C C' n ainstrs0 E ts1 ts2 ts3 ts4,
+      length ts1 = n ->
+      (S,C) ⊢a* ainstrs0 ∈ ts1 --> ts2 ->
+      valid_eval_context S (C,labels ts1) E C'
+                         ts3 ts4 [] ts2 ->
+      valid_eval_context S C (E_label n ainstrs0 E) C'
+                         ts3 ts4 [] ts2.
+
+Hint Constructors valid_eval_context.
+
+Lemma plug_E_decompose : forall S C E ainstrs ts1 ts2,
+   (S,C) ⊢a* plug__E E ainstrs ∈ ts1 --> ts2 ->
+   exists C' ts3 ts4,
+     (S,C') ⊢a* ainstrs ∈ ts3 --> ts4 /\
+     valid_eval_context S C E C' ts3 ts4 ts1 ts2.
+Proof with eauto.
+  introv HVAIS.
+  gen C ainstrs ts1 ts2.
+  induction E; introv HVAIS; simpl in *.
+  - exists C ts1 ts2...
+  - apply vais_app3 in HVAIS.
+    destruct HVAIS as (ts3 & ts4 & Hvals & HE & Hrest).
+    destruct (IHE _ _ _ _ HE) as (C' & ts5 & ts6 & Hinner & Hcontext).
+    exists C' ts5 ts6...
+  - inverts HVAIS as HVAIS' HVAI Heq;
+      try (symmetry in Heq; invert_eq_snoc_app Heq).
+    inverts HVAI as Hcont Hbody.
+    destruct (IHE _ _ _ _ Hbody)
+      as (C' & ts3 & ts4 & Hinner & Hcontext).
+    exists C' ts3 ts4...
+Qed.
+
+Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
+    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+    (S,C') ⊢a* ainstrs ∈ ts3 --> ts4 ->
+    (S,C) ⊢a* plug__E E ainstrs ∈ ts1 --> ts2.
+Proof with eauto.
+  introv Hcontext Hinner.
+  induction Hcontext; simpl in *.
+  - assumption.
+  - apply vais_app3.
+    exists ts2 ts5...
+  - econstructor...
+    econstructor...
+Qed.
+
 
 (*
       S, C  ⊢ E[ainstrs] : ts1 --> ts2
