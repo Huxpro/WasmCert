@@ -896,10 +896,10 @@ Proof with eauto.
   gen ts.
   induction vals using rev_ind; intros.
   - simpl. rewrite app_nil_r. constructor.
-  - rewrite map_app.
-    rewrite upup_app.
+  - rewrite upup_app.
+    rewrite map_app.
     simpl.
-    rewrite <- app_assoc.
+    rewrite app_assoc.
     eapply VAIS_snoc with (ts := []).
     + rewrite app_nil_r.
       apply IHvals.
