@@ -694,7 +694,7 @@ Lemma vais_weakening_app : forall S C ainstrs ts0 ts1 ts2,
     (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2).
 Proof with eauto.
   introv HVAIS.
-  induction HVAIS.
+  dependent induction HVAIS.
   - constructor.
   - rewrite <- app_assoc.
     eapply VAIS_snoc.
