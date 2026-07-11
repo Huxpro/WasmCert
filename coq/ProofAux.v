@@ -903,8 +903,7 @@ Proof with eauto.
     eapply VAIS_snoc with (ts := []).
     + rewrite app_nil_r.
       apply IHvals.
-    + constructor. constructor.
-  Show Existentials.
+    + constructor. constructor. reflexivity.
 Qed.
 
 
