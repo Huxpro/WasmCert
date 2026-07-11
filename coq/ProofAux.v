@@ -37,14 +37,33 @@ Qed.
 Lemma cons_to_app: forall {X: Type} (x: X) (xs: list X),
     x :: xs = [x] ++ xs.
 Proof.
-  Admitted.
+  reflexivity.
+Qed.
 
 Lemma app_eq_same_len : forall {X: Type} (xs xs' xs1 xs2: list X), 
     length xs1 = length xs2 ->
     xs ++ xs1 = xs' ++ xs2 ->
     xs = xs' /\ xs1 = xs2.
 Proof with auto.
-Admitted.
+  introv Hlen Happ.
+  gen xs' xs1 xs2.
+  induction xs; intros xs' xs1 xs2 Hlen Happ.
+  - destruct xs'.
+    + splits...
+    + assert (Hlength := f_equal (@length X) Happ).
+      simpl in Hlength.
+      rewrite app_length in Hlength.
+      omega.
+  - destruct xs'.
+    + assert (Hlength := f_equal (@length X) Happ).
+      simpl in Hlength.
+      rewrite app_length in Hlength.
+      omega.
+    + simpl in Happ.
+      injection Happ as Hhead Htail.
+      destruct (IHxs xs' xs1 xs2 Hlen Htail).
+      subst...
+Qed.
 
 
 
@@ -281,30 +300,55 @@ Lemma unsnoc_neq: forall {A : Type} (l1 l2 : list A),
   unsnoc l1 <> unsnoc l2 ->
   l1 <> l2.
 Proof. 
-  Admitted.
+  intros A l1 l2 Hneq Heq.
+  subst.
+  apply Hneq.
+  reflexivity.
+Qed.
 
 Lemma unsnoc_car_neq: forall {A : Type} (l1 l2 : list A), 
   unsnoc_car l1 <> unsnoc_car l2 ->
   l1 <> l2.
 Proof. 
-  Admitted.
+  intros A l1 l2 Hneq Heq.
+  subst.
+  apply Hneq.
+  reflexivity.
+Qed.
 
 Lemma unsnoc_snoc_app_some : forall {X: Type} (l: list X) x,
     unsnoc (l ++ [x]) = Some (l, x).
 Proof. 
-  Admitted.
+  intros X l x.
+  induction l.
+  - reflexivity.
+  - destruct l.
+    + reflexivity.
+    + simpl in *.
+      rewrite IHl.
+      reflexivity.
+Qed.
 
 Lemma unsnoc_some_eq_snoc_app: forall {X: Type} {xs xs' : list X} {x: X},
   unsnoc xs = Some (xs', x) ->
   xs = xs' ++ [x].
 Proof with auto.
-  destruct xs;
-    introv Heq.
+  induction xs as [|a xs]; introv Heq.
   - simpl in Heq. inverts Heq.
-  - gen x xs'. induction xs; intros.
-    + simpl in Heq. inverts Heq. apply app_nil_l.
-    + admit.
-Admitted.
+  - destruct xs as [|b xs].
+    + simpl in Heq. inverts Heq. reflexivity.
+    + change
+        (match unsnoc (b :: xs) with
+         | Some (cdr, car) => Some (a :: cdr, car)
+         | None => None
+         end = Some (xs', x)) in Heq.
+      destruct (unsnoc (b :: xs)) as [[tail car] |] eqn:Htail.
+      * specialize (IHxs tail car eq_refl).
+        inverts Heq.
+        rewrite IHxs.
+        reflexivity.
+      * inverts Heq.
+Qed.
 
 (* combine *)
 Lemma exists_snoc_app: forall {X: Type} (xs : list X), 
@@ -645,20 +689,29 @@ Qed.
 (* ----------------------------------------------------------------- *)
 (** *** Weakening *)
 
-(* Can be proved by using the properties
-   where the [VAIS_nil] case can choose its polymorphic type underterminstically. 
-*)
-Lemma vais_weakening : forall S C ainstrs ts0 ts1,
-    (S, C) ⊢a* ainstrs ∈ ts0 --> (ts0 ++ ts1) <->
-    (S, C) ⊢a* ainstrs ∈ [] --> ([] ++ ts1).
-Proof with auto.
-Admitted.
-
 Lemma vais_weakening_app : forall S C ainstrs ts0 ts1 ts2,
-    (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2) <->
-    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2.
-Proof with auto.
-Admitted.
+    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
+    (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2).
+Proof with eauto.
+  introv HVAIS.
+  dependent induction HVAIS.
+  - constructor.
+  - rewrite app_assoc.
+    eapply VAIS_snoc.
+    + rewrite <- app_assoc.
+      eapply IHHVAIS; reflexivity.
+    + exact H.
+Qed.
+
+Lemma vais_weakening : forall S C ainstrs ts0 ts1,
+    (S, C) ⊢a* ainstrs ∈ [] --> ts1 ->
+    (S, C) ⊢a* ainstrs ∈ ts0 --> (ts0 ++ ts1).
+Proof with eauto.
+  introv HVAIS.
+  replace ts0 with (ts0 ++ []) at 1 by apply app_nil_r.
+  eapply vais_weakening_app.
+  exact HVAIS.
+Qed.
 
 (* ----------------------------------------------------------------- *)
 (** *** Lifting *)
@@ -667,7 +720,14 @@ Lemma vis_to_vais : forall S C instrs ts0 ts1,
         C  ⊢*   instrs ∈ ts0 --> ts1 ->
     (S, C) ⊢a* ↑instrs ∈ ts0 --> ts1.
 Proof with auto.
-Admitted.
+  introv HVIS.
+  induction HVIS.
+  - simpl. constructor.
+  - rewrite up_app.
+    eapply VAIS_snoc.
+    + exact IHHVIS.
+    + constructor. exact H.
+Qed.
 
 
 (* ----------------------------------------------------------------- *)
@@ -717,7 +777,13 @@ Proof with eauto.
       inverts Heqapp. 
       edestruct IHHVAISapp as (ts4' & HV1 & HV2)...
   --- (* <- *)
-Admitted.    
+  intros (ts2 & HVAIS0 & HVAIS1).
+  gen ainstrs0 ts1.
+  dependent induction HVAIS1; intros.
+  - rewrite app_nil_r. exact HVAIS0.
+  - rewrite app_assoc.
+    eapply VAIS_snoc...
+Qed.
 
 
 (*
@@ -823,6 +889,23 @@ Proof with auto.
          rewrite app_nil_r...
 Qed.
 
+Lemma vais_vals_intro : forall S C vals ts,
+    (S,C) ⊢a* ⇈vals ∈ ts --> (ts ++ map type_of vals).
+Proof with eauto.
+  introv.
+  gen ts.
+  induction vals using rev_ind; intros.
+  - simpl. rewrite app_nil_r. constructor.
+  - rewrite upup_app.
+    rewrite map_app.
+    simpl.
+    rewrite app_assoc.
+    eapply VAIS_snoc with (ts := []).
+    + rewrite app_nil_r.
+      apply IHvals.
+    + constructor. constructor. reflexivity.
+Qed.
+
 
 (* ----------------------------------------------------------------- *)
 (** *** S C Irrelevant Weakening *)
@@ -900,8 +983,10 @@ Proof with auto.
   destruct HVAIS as (ts3 & Hvals1 & Hvals2).
   rewrite app_assoc in Hvals2.
   specialize (vais_vals_len _ _ _ _ _ _ Hlength Hvals2) as Heq; subst.
-  apply vais_weakening in Hvals2.
-  apply vais_weakening...
+  apply vais_vals in Hvals2.
+  apply app_inv_head in Hvals2.
+  rewrite Hvals2.
+  apply vais_vals_intro.
 Qed.
 
 
@@ -929,7 +1014,13 @@ Proof with auto.
   rewrite app_assoc in Hvals2.
   specialize (vais_vals_len _ _ _ _ _ _ Hlength2 Hvals2) as H2.
   splits; subst...
-  - apply vais_weakening in Hvals1. apply vais_ts_app_nil_l...
-  - apply vais_weakening in Hvals2. apply vais_ts_app_nil_l...
+  - apply vais_vals in Hvals1.
+    apply app_inv_head in Hvals1.
+    rewrite Hvals1.
+    apply vais_vals_intro.
+  - apply vais_vals in Hvals2.
+    apply app_inv_head in Hvals2.
+    rewrite Hvals2.
+    apply vais_vals_intro.
 Qed.
   

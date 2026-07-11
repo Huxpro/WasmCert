@@ -12,6 +12,8 @@ From Wasm Require Export Execution.
 From Wasm Require Export ExtendedTyping.
 From Wasm Require Export ProofAux.
 
+Set Nested Proofs Allowed.
+
 (* Coercions are too confusing during proofs. *)
 Set Printing Coercions.
 
@@ -740,15 +742,13 @@ Proof with eauto.
     eapply preservation_SC_simple_VAI_label...
 Qed.
 
-Lemma preservation_SC_simple: forall C S F ainstrs ainstrs' ts1 ts2,
-    ⊢S S ok ->      (* HVS *)
-    S ⊢A F ∈ C ->   (* HVA *)
+Lemma preservation_SC_simple: forall C S ainstrs ainstrs' ts1 ts2,
     (S, C) ⊢a* ainstrs ∈ ts1 --> ts2 -> (* HVAIS *)
     ainstrs ↪s ainstrs' -> (* HSS *)
 (* -------------------------------------------- *)
     (S, C) ⊢a* ainstrs' ∈ ts1 --> ts2.
 Proof with eauto.
-  introv HVS HVA HVAIS HSS.
+  introv HVAIS HSS.
   inverts HVAIS.
   - (* VAIS_empty *)
     exfalso. apply ϵ_is_normal_form.
@@ -762,16 +762,44 @@ Qed.
 (* ================================================================= *)
 (** ** Preservation - SC_block *)
 
+(* A frame context and an instruction context may differ in their label
+   stacks.  All other fields must agree. *)
+Record same_context_except_labels (C1 C2 : context) : Prop := {
+  SCEL_types : C1.(C_types) = C2.(C_types);
+  SCEL_funcs : C1.(C_funcs) = C2.(C_funcs);
+  SCEL_tables : C1.(C_tables) = C2.(C_tables);
+  SCEL_locals : C1.(C_locals) = C2.(C_locals);
+  SCEL_return : C1.(C_return) = C2.(C_return)
+}.
+
+Lemma same_context_except_labels_refl : forall C,
+    same_context_except_labels C C.
+Proof.
+  intros; constructor; reflexivity.
+Qed.
+
+Lemma same_context_except_labels_trans : forall C1 C2 C3,
+    same_context_except_labels C1 C2 ->
+    same_context_except_labels C2 C3 ->
+    same_context_except_labels C1 C3.
+Proof.
+  intros C1 C2 C3 H12 H23.
+  destruct H12; destruct H23.
+  constructor; congruence.
+Qed.
+
 (* By using this lemma,
    We can hide the [locals] inverted from [frame] and made proof cleaner.
 *)
-Lemma vbt_expand : forall S C F bt ts1 ts2 ts3 ts4,
-  S ⊢A F ∈ C ->
+Lemma vbt_expand : forall S CF C F bt ts1 ts2 ts3 ts4,
+  S ⊢A F ∈ CF ->
+  same_context_except_labels CF C ->
   expand F bt = Some (ts1 --> ts2) -> (* Hexpand *)
   C ⊢bt bt ∈ ts3 --> ts4 -> (*  HVBT *)
   (ts1 --> ts2) = (ts3 --> ts4).
 Proof with eauto.
-  introv HVA Hexpand HVBT.
+  introv HVA HC Hexpand HVBT.
+  destruct HC as [HCtypes_eq HCfuncs_eq HCtables_eq HClocals_eq HCreturn_eq].
   inverts HVBT as; simpl in Hexpand.
 
   - (* VBT_typeidx *)
@@ -789,7 +817,8 @@ also some locals [val0 : ts3] and [C with_locals = ts3] from frame [F], but nous
 
     inverts HVA as HVMI HVVS.
     simpl in Hexpand.
-    simpl in HCtypes.
+    simpl in HCtypes_eq.
+    rewrite <- HCtypes_eq in HCtypes.
 
 (*
 
@@ -811,17 +840,18 @@ Inverts on [HMI] here will give us the members of [mi] where [ MI_types = C.(C_t
     inverts Hexpand...
 Qed.
 
-Lemma preservation_SC_block: forall S F C vals instrs bt ts0 ts1 ts2 ts3,
+Lemma preservation_SC_block: forall S F CF C vals instrs bt ts0 ts1 ts2 ts3,
                    (* HSS is gone... *)
     ⊢S S ok ->      (* HVS *)
-    S ⊢A F ∈ C ->   (* HVA *)
+    S ⊢A F ∈ CF ->  (* HVA *)
+    same_context_except_labels CF C ->
     length vals = length ts1 -> (* Hlength *)
     expand F bt = Some (ts1 --> ts2) -> (* Hexpand *)
     (S, C) ⊢a* ⇈ vals ++ ↑[Block bt instrs] ∈ ts0 --> ts3 -> (* HVAIS *)
 (* --------------------------------------------------------------------------*)
     (S, C) ⊢a* [Label (length ts2) [] (⇈ vals ++ ↑ instrs)] ∈ ts0 --> ts3.
 Proof with eauto.
-  introv HVS HVA Hlength Hexpand HVAIS.
+  introv HVS HVA HC Hlength Hexpand HVAIS.
   inverts HVAIS as.
 
   - (* VAIS_empty *)
@@ -847,7 +877,7 @@ Proof with eauto.
    and eventuall give us the type preservation on [Label (length ts2) body... ∈ --> ts2]
 *)
 
-    specialize (vbt_expand _ _ _ _ _ _ _ _ HVA Hexpand HVBT) as Hbt.
+    specialize (vbt_expand _ _ _ _ _ _ _ _ _ HVA HC Hexpand HVBT) as Hbt.
     inverts keep HVBT as; inverts Hbt; simpl in Hexpand. 
 
     + (* VBT_typeidx *)
@@ -879,8 +909,12 @@ From this pair we can show [ts0 = ts4].
 
       eapply vais_app.
       exists ts; split.
-      eapply vais_weakening...
-      eapply vais_vals_SC_weakening...
+      assert (Htypes : ts = map type_of vals).
+      { apply vais_vals in HVAIS'.
+        apply app_inv_head in HVAIS'.
+        exact HVAIS'. }
+      rewrite Htypes.
+      apply vais_vals_intro.
       apply vis_to_vais...
 
     + (* [VBT_valtype__some] *)
@@ -912,17 +946,18 @@ Qed.
 (* ================================================================= *)
 (** ** Preservation - SC_loop *)
 
-Lemma preservation_SC_loop: forall S F C vals instrs bt ts0 ts1 ts2 ts3,
+Lemma preservation_SC_loop: forall S F CF C vals instrs bt ts0 ts1 ts2 ts3,
                    (* HSS is gone... *)
     ⊢S S ok ->      (* HVS *)
-    S ⊢A F ∈ C ->   (* HVA *)
+    S ⊢A F ∈ CF ->  (* HVA *)
+    same_context_except_labels CF C ->
     length vals = length ts1 -> (* Hlength *)
     expand F bt = Some (ts1 --> ts2) -> (* Hexpand *)
     (S, C) ⊢a* ⇈vals ++ ↑[Loop bt instrs] ∈ ts0 --> ts3 -> (* HVAIS *)
 (* -------------------------------------------------------------------------------------------- *)
     (S, C) ⊢a* [Label (length ts1) ↑[Loop bt instrs] (⇈vals ++ ↑instrs)] ∈ ts0 --> ts3.
 Proof with eauto.
-  introv HVS HVA Hlength Hexpand HVAIS.
+  introv HVS HVA HC Hlength Hexpand HVAIS.
   inverts HVAIS as.
 
   - (* VAIS_empty *)
@@ -948,7 +983,7 @@ Proof with eauto.
 
   and eventuall give us the type preservation on [Label (length ts1) body... ∈ --> ts2]
 *)
-    specialize (vbt_expand _ _ _ _ _ _ _ _ HVA Hexpand HVBT) as Hbt.
+    specialize (vbt_expand _ _ _ _ _ _ _ _ _ HVA HC Hexpand HVBT) as Hbt.
     inverts keep HVBT as; inverts Hbt; simpl in Hexpand. 
 
     + (* VBT_typeidx *)
@@ -995,8 +1030,12 @@ Proof with eauto.
       ++ (* Body *)
         eapply vais_app.
         exists ts; split.
-        eapply vais_weakening...
-        eapply vais_vals_SC_weakening...
+        assert (Htypes : ts = map type_of vals).
+        { apply vais_vals in HVAIS'.
+          apply app_inv_head in HVAIS'.
+          exact HVAIS'. }
+        rewrite Htypes.
+        apply vais_vals_intro.
         eapply vis_to_vais...
 
     + (* [VBT_valtype__some] *)
@@ -1039,17 +1078,18 @@ Qed.
 (* ================================================================= *)
 (** ** Preservation - [SC_if__nez] *)
 
-Lemma preservation_SC_if__nez: forall S F C vals instrs1 instrs2 bt ts0 ts1 ts2 ts3 (c: I32.t),
+Lemma preservation_SC_if__nez: forall S F CF C vals instrs1 instrs2 bt ts0 ts1 ts2 ts3 (c: I32.t),
                    (* HSS is gone... *)
     ⊢S S ok ->      (* HVS *)
-    S ⊢A F ∈ C ->   (* HVA *)
+    S ⊢A F ∈ CF ->  (* HVA *)
+    same_context_except_labels CF C ->
     length vals = length ts1 -> (* Hlength *)
     expand F bt = Some (ts1 --> ts2) -> (* Hexpand *)
     (S, C) ⊢a* ⇈vals ++ ↑[(Const (i32 c)); (If bt instrs1 instrs2)] ∈ ts0 --> ts3 -> (* HVAIS *)
 (* ------------------------------------------------------------------------------------------*)
     (S, C) ⊢a* [Label (length ts2) [] (⇈vals ++ ↑instrs1)] ∈ ts0 --> ts3.
 Proof with eauto.
-  introv HVS HVA Hlength Hexpand HVAIS.
+  introv HVS HVA HC Hlength Hexpand HVAIS.
   inverts HVAIS as.
 
   - (* VAIS_empty *)
@@ -1063,7 +1103,7 @@ Proof with eauto.
     inverts HVAI__N as HVI__if.
     inverts keep HVI__if as HVBT HVIS1 HVIS2.
 
-    specialize (vbt_expand _ _ _ _ _ _ _ _ HVA Hexpand HVBT) as Hbt.
+    specialize (vbt_expand _ _ _ _ _ _ _ _ _ HVA HC Hexpand HVBT) as Hbt.
     inverts keep HVBT as; inverts Hbt; simpl in Hexpand. 
 
     + (* VBT_typeidx *)
@@ -1119,17 +1159,18 @@ Qed.
 (* ================================================================= *)
 (** ** Preservation - [SC_if__eqz] *)
 
-Lemma preservation_SC_if__eqz: forall S F C vals instrs1 instrs2 bt ts0 ts1 ts2 ts3 (c: I32.t),
+Lemma preservation_SC_if__eqz: forall S F CF C vals instrs1 instrs2 bt ts0 ts1 ts2 ts3 (c: I32.t),
                    (* HSS is gone... *)
     ⊢S S ok ->      (* HVS *)
-    S ⊢A F ∈ C ->   (* HVA *)
+    S ⊢A F ∈ CF ->  (* HVA *)
+    same_context_except_labels CF C ->
     length vals = length ts1 -> (* Hlength *)
     expand F bt = Some (ts1 --> ts2) -> (* Hexpand *)
     (S, C) ⊢a* ⇈vals ++ ↑[(Const (i32 c)); (If bt instrs1 instrs2)] ∈ ts0 --> ts3 -> (* HVAIS *)
 (* ------------------------------------------------------------------------------------------*)
     (S, C) ⊢a* [Label (length ts2) [] (⇈vals ++ ↑instrs2)] ∈ ts0 --> ts3.
 Proof with eauto.
-  introv HVS HVA Hlength Hexpand HVAIS.
+  introv HVS HVA HC Hlength Hexpand HVAIS.
   inverts HVAIS as.
 
   - (* VAIS_empty *)
@@ -1143,7 +1184,7 @@ Proof with eauto.
     inverts HVAI__N as HVI__if.
     inverts keep HVI__if as HVBT HVIS1 HVIS2.
 
-    specialize (vbt_expand _ _ _ _ _ _ _ _ HVA Hexpand HVBT) as Hbt.
+    specialize (vbt_expand _ _ _ _ _ _ _ _ _ HVA HC Hexpand HVBT) as Hbt.
     inverts keep HVBT as; inverts Hbt; simpl in Hexpand. 
 
     + (* VBT_typeidx *)
@@ -1234,93 +1275,6 @@ Qed.
 
 
  *)
-Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
-                  (* valid_config *)
-    ⊢S S ok ->       (* valid_store  *) (* valid_thread *)
-    S ⊢A F ∈ C ->                         (* valid_frame *)
-    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->       (* valid_admin_instr *)
-    (S, F, ainstrs) ↪ (S', F', ainstrs') ->  (* step in S_F_ainstrs level *)
-
-(* ---------------------------------------------------------------------------- *)
-
-    ⊢S S ⪯ S' /\    (* weakening *)
-      ⊢S S' ok /\      (* valid_store *)
-      S' ⊢A F' ∈ C /\  (* valid_frame  *)
-      (S',C) ⊢a* ainstrs' ∈ ts1 --> ts2. (* valid_admin_instr *)
-Proof with eauto.
-  introv HVS HVA HVAIS HSC.
-  gen C ts1 ts2.
-  dependent induction HSC; intros.
-  - (* SC_simple *) 
-    splits...
-    + (*  ⊢S S' ⪯ S' *) apply (extend_store_refl _ HVS).
-    + (*  ⊢a*  *) eapply preservation_SC_simple...
-  - (* SC_block *)
-    splits...
-    + (*  ⊢S S' ⪯ S' *) apply (extend_store_refl _ HVS).
-    + (*  ⊢a*  *) eapply preservation_SC_block...
-
-  - (* SC_loop *) 
-    splits...
-    + (*  ⊢S S' ⪯ S' *) apply (extend_store_refl _ HVS).
-    + (*  ⊢a*  *) eapply preservation_SC_loop...
-
-  - (* [SC_if__nez] *) 
-    splits...
-    + (*  ⊢S S' ⪯ S' *) apply (extend_store_refl _ HVS).
-    + (*  ⊢a*  *) eapply preservation_SC_if__nez with (c := c) (instrs2 := instrs2)...
-
-  - (* SC_if2 *) 
-    splits...
-    + (*  ⊢S S' ⪯ S' *) apply (extend_store_refl _ HVS).
-    + (*  ⊢a*  *) eapply preservation_SC_if__eqz with (c := I32.zero) (instrs1 := instrs1)... 
-
-  - (* SC_E *) admit.
-Admitted.
-
-
-(* ================================================================= *)
-(** ** Preservation - Top Level Frame *)
-
-Lemma VMI_with_ret_none : forall S mi C,
-    S ⊢mi mi ∈ C ->
-    S ⊢mi mi ∈ C with_return = None.
-Proof with eauto.
-  introv HVMI.
-  inverts HVMI. 
-  econstructor...
-Qed.
-
-Lemma VA_with_ret_none : forall S F C,
-    S ⊢A F ∈ C ->
-    S ⊢A F ∈ C with_return = None.
-Proof with eauto.
-  introv HVA.
-  inverts HVA as HVMI HVVS.
-  asserts_rewrite ((C0 with_locals = ts with_return = None) = (C0 with_return = None with_locals = ts))...
-  eapply VA...
-  apply VMI_with_ret_none...
-Qed.
-
-Corollary preservation__toplevel : forall S T S' T' rt,
-    ⊢c (S, T) ∈ rt ->
-    $(S, T) ↪ $(S', T') ->
-    ⊢c (S', T') ∈ rt /\ ⊢S S ⪯ S'.
-Proof with eauto.
-  introv HVC.
-
-  (* valid_config *)
-  inverts HVC as HVS HVT. (* valid_store *) (* valid_thread *)
-    inverts HVT as HVA HVAIS. (* valid_frame *) (* valid_admin_instrs *)
-
-  introv HSC. simpl in HSC.
-  destruct T' as [F' ainstrs'].
-
-  destruct (preservation S F S' F' (C with_return = None) ainstrs ainstrs' [] rt) as (HES & HVS' & HVA' & HVAIS')...
-  eapply VA_with_ret_none...
-Qed.
-
-
 (* ================================================================= *)
 (** ** Experimenting on [Preservation_SC_E] here *)
 
@@ -1380,6 +1334,163 @@ Proof with eauto.
   eapply EC with (rts := rts ++ [ts]).
 Qed. 
 
+(* A typing derivation for an evaluation context.  Unlike [extend_context],
+   this relation records exactly which labels are introduced by [E], as well
+   as the typing derivations for the prefix, suffix, and continuations around
+   the hole. *)
+Inductive valid_eval_context (S : store) :
+  context -> eval_context -> context ->
+  resulttype -> resulttype -> resulttype -> resulttype -> Prop :=
+  | VEC_hole : forall C ts1 ts2,
+      valid_eval_context S C E_hole C ts1 ts2 ts1 ts2
+
+  | VEC_seq : forall C C' vals E ainstrs
+                     ts1 ts2 ts3 ts4 ts5 ts6,
+      (S,C) ⊢a* ⇈vals ∈ ts1 --> ts2 ->
+      valid_eval_context S C E C' ts3 ts4 ts2 ts5 ->
+      (S,C) ⊢a* ainstrs ∈ ts5 --> ts6 ->
+      valid_eval_context S C (E_seq vals E ainstrs) C'
+                         ts3 ts4 ts1 ts6
+
+  | VEC_label : forall C C' n ainstrs0 E ts0 ts1 ts2 ts3 ts4,
+      length ts1 = n ->
+      (S,C) ⊢a* ainstrs0 ∈ ts1 --> ts2 ->
+      valid_eval_context S (C,labels ts1) E C'
+                         ts3 ts4 [] ts2 ->
+      valid_eval_context S C (E_label n ainstrs0 E) C'
+                         ts3 ts4 ts0 (ts0 ++ ts2).
+
+Hint Constructors valid_eval_context.
+
+Scheme valid_config_store_ind := Induction for valid_config Sort Prop
+with valid_thread_store_ind := Induction for valid_thread Sort Prop
+with valid_frame_store_ind := Induction for valid_frame Sort Prop
+with valid_admin_instr_store_ind := Induction for valid_admin_instr Sort Prop
+with valid_admin_instrs_store_ind := Induction for valid_admin_instrs Sort Prop.
+
+(* The store index is phantom in administrative typing: no constructor
+   inspects it.  This mutual induction is still required because labels contain
+   recursively typed administrative instruction lists. *)
+Lemma vais_store_irrelevant : forall S C ainstrs ft,
+    (S,C) ⊢a* ainstrs ∈ ft ->
+    forall S', (S',C) ⊢a* ainstrs ∈ ft.
+Proof with eauto.
+  introv HVAIS.
+  induction HVAIS using valid_admin_instrs_store_ind
+    with (P := fun _ _ _ => True)
+         (P0 := fun _ _ _ _ => True)
+         (P1 := fun _ _ _ _ => True)
+         (P2 := fun SC ainstr ft _ =>
+                  forall S', (S', snd SC) ⊢a ainstr ∈ ft)
+         (P3 := fun SC ainstrs ft _ =>
+                  forall S', (S', snd SC) ⊢a* ainstrs ∈ ft);
+    simpl in *; intros...
+Qed.
+
+Lemma valid_eval_context_store_irrelevant :
+  forall S S' C C' E ts1 ts2 ts3 ts4,
+    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+    valid_eval_context S' C E C' ts3 ts4 ts1 ts2.
+Proof with eauto using vais_store_irrelevant.
+  introv Hcontext.
+  induction Hcontext...
+Qed.
+
+Lemma valid_eval_context_extends :
+  forall S C C' E ts1 ts2 ts3 ts4,
+    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+    ⊢C C ⪯ C'.
+Proof with eauto using extend_context_refl, extend_context_cons.
+  introv Hcontext.
+  induction Hcontext...
+Qed.
+
+Lemma valid_eval_context_same_except_labels :
+  forall S C C' E ts1 ts2 ts3 ts4,
+    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+    same_context_except_labels C C'.
+Proof with eauto using same_context_except_labels_refl,
+                       same_context_except_labels_trans.
+  introv Hcontext.
+  induction Hcontext.
+  - apply same_context_except_labels_refl.
+  - exact IHHcontext.
+  - eapply same_context_except_labels_trans
+      with (C2 := C,labels ts1).
+    + constructor; reflexivity.
+    + exact IHHcontext.
+Qed.
+
+Lemma plug_E_decompose : forall S C E ainstrs ts1 ts2,
+   (S,C) ⊢a* plug__E E ainstrs ∈ ts1 --> ts2 ->
+   exists C' ts3 ts4,
+     (S,C') ⊢a* ainstrs ∈ ts3 --> ts4 /\
+     valid_eval_context S C E C' ts3 ts4 ts1 ts2.
+Proof with eauto.
+  introv HVAIS.
+  gen C ainstrs ts1 ts2.
+  induction E; introv HVAIS; simpl in *.
+  - exists C ts1 ts2.
+    split; [assumption | constructor].
+  - apply vais_app3 in HVAIS.
+    destruct HVAIS as (ts3 & ts4 & Hvals & HE & Hrest).
+    destruct (IHE _ _ _ _ HE) as (C' & ts5 & ts6 & Hinner & Hcontext).
+    exists C' ts5 ts6.
+    split; [exact Hinner |].
+    exact (@VEC_seq S C C' vals E ainstrs
+                    ts1 ts3 ts5 ts6 ts4 ts2
+                    Hvals Hcontext Hrest).
+  - inverts HVAIS as HVAIS' HVAI Heq.
+    Unshelve.
+    all: try (symmetry in Heq; invert_eq_snoc_app Heq).
+    all: try match goal with
+             | Hnil : _ ++ [_] = [] |- _ =>
+                 apply app_eq_nil in Hnil;
+                 destruct Hnil as [_ Hnil];
+                 inversion Hnil
+             end.
+    inverts HVAIS'.
+    simpl in *.
+    repeat rewrite app_nil_r in *.
+    inverts HVAI as Hcont Hbody.
+    destruct (IHE _ _ _ _ Hbody)
+      as (C' & ts__in & ts__out & Hinner & Hcontext).
+    exists C' ts__in ts__out.
+    split; [exact Hinner |].
+    rewrite app_nil_r.
+    exact (@VEC_label S C C' (length ts1) cont E
+                      ts0 ts1 ts4 ts__in ts__out
+                      eq_refl Hcont Hcontext).
+  Unshelve.
+  all: match goal with
+       | Hnil : _ ++ [_] = [] |- _ =>
+           apply app_eq_nil in Hnil;
+           destruct Hnil as [_ Hnil];
+           inversion Hnil
+       end.
+Qed.
+
+Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
+    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+    (S,C') ⊢a* ainstrs ∈ ts3 --> ts4 ->
+    (S,C) ⊢a* plug__E E ainstrs ∈ ts1 --> ts2.
+Proof with eauto.
+  introv Hcontext Hinner.
+  induction Hcontext; simpl in *.
+  - assumption.
+  - apply vais_app3.
+    exists ts2 ts5...
+  - rewrite <- (app_nil_l [Label n ainstrs0 (plug__E E ainstrs)]).
+    eapply VAIS_snoc with (ts := []).
+    + rewrite app_nil_r.
+      constructor.
+    + eapply VAI_label.
+      * exact H.
+      * exact H0.
+      * apply IHHcontext.
+        exact Hinner.
+Qed.
+
 
 (*
       S, C  ⊢ E[ainstrs] : ts1 --> ts2
@@ -1422,162 +1533,143 @@ Proof with eauto.
 Qed.
 
 (*
-      S,C  ⊢ E[ainstrs] : ts1 --> ts2
-      S,C' ⊢   ainstrs  : ts3 --> ts4  
-      S,C' ⊢   ainstrs' : ts3 --> ts4     ⊢ C ⪯ C'
-   ----------------------------------------------------
+      S,C' ⊢   ainstrs' : ts3 --> ts4
+      S,C  ⊢ E : (C', ts3 --> ts4) => (ts1 --> ts2)
+   -----------------------------------------------------
       S,C  ⊢ E[ainstrs']: ts1 --> ts2
 
-  This can only be proved if we include the inforamtion ,
-  we might need some thing like:
-
-      ⊢ C ⪯ C' <to> E
+  [valid_eval_context] ties every extension of [C] to the corresponding
+  [E_label] and retains the surrounding typing derivations.
 
 *)
-Lemma plug_E_same : forall S C C' E ainstrs ainstrs' ts1 ts2 ts3 ts4,
-   ⊢C C ⪯ C' ->
-   (S, C) ⊢a* (plug__E E ainstrs) ∈ ts1 --> ts2 ->
-   (S, C') ⊢a* ainstrs ∈ ts3 --> ts4 ->
-   (S, C') ⊢a* ainstrs' ∈ ts3 --> ts4 ->
-   (S, C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts2.
-Proof with eauto.
-  introv HEC Hin Hin' Hplug.
-  dependent induction E; simpl in *. 
-  - (* E_hole *) admit.
-  - (* E_seq *) admit.
-  - (* E_label *) admit.
-Admitted.
+Lemma plug_E_same : forall S S' C C' E ainstrs' ts1 ts2 ts3 ts4,
+   valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+   (S', C') ⊢a* ainstrs' ∈ ts3 --> ts4 ->
+   (S', C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts2.
+Proof.
+  intros S S' C C' E ainstrs' ts1 ts2 ts3 ts4 Hcontext Hinner.
+  eapply plug_E_recompose; [| exact Hinner].
+  eapply valid_eval_context_store_irrelevant.
+  exact Hcontext.
+Qed.
 
-
-(*
-        ainstrs  :     ts2 --> ts5
-      E[ainstrs] : ts1     -->     ts6
-        ainstrs' :     ts2 --> ts3
-   -------------------------------------
-      E[ainstrs']: ts1     -->     ts4
- *)
-Lemma plug_E_strong_same : forall S C S' C' E ainstrs ainstrs' ts1 ts3 ts4 ts6,
-     (S, C) ⊢a*          ainstrs   ∈ ts3 --> ts4 ->
-     (S, C) ⊢a* (plug__E E ainstrs)  ∈ ts1 --> ts6 ->
-    (S', C) ⊢a*          ainstrs'  ∈ ts3 --> ts4 ->
-    (S', C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts6.
-Proof with eauto.
-  induction E; introv H34 H16 H34'.
-  - admit.
-  - simpl in *.
-    apply vais_app3 in H16 as Happ3.
-    destruct Happ3 as (ts2 & ts5 & H12 & H25 & H56). 
-    specialize (IHE ainstrs0 ainstrs' ts2 ts3 ts4 ts5 H34 H25 H34') as H25'...
-    apply vais_app3.
-    exists ts2 ts5. 
-    splits. (* Instead, we probably want to show store extension preserve types *)
-    + (* vals *) skip.
-    + (* hole *) apply H25'.
-    + (* rest *) 
-      inverts H56 as...
-      introv HVAIS56 HVAI__N56.
-Admitted.
-      
-(*
-  introv H25 H16 H25'. gen S C S' C'.
-  induction E; intros; simpl in *.
-  - (* E_hole *)
-    admit. (* need to show typing is unique *)
-  - (* E_seq *)
-    apply vais_app3 in H16 as Happ3.
-    destruct Happ3 as (ts3 & ts4 & H23 & H34 & H45). 
-    edestruct (IHE ainstrs0 ainstrs'. 
-    apply vais_app3.
-    eexists. eexists...
-  - (* E_label *)
-Admitted.
-*)
-
-Theorem preservation_SC_E : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
-                  (* valid_config *)
-    ⊢S S ok ->       (* valid_store  *) (* valid_thread *)
-    S ⊢A F ∈ C ->                         (* valid_frame *)
-    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->       (* valid_admin_instr *)
-    (S, F, ainstrs) ↪ (S', F', ainstrs') ->  (* step in S_F_ainstrs level *)
-
-(* ---------------------------------------------------------------------------- *)
-
-    ⊢S S ⪯ S' /\    (* weakening *)
-      ⊢S S' ok /\      (* valid_store *)
-      S' ⊢A F' ∈ C /\  (* valid_frame  *)
-      (S',C) ⊢a* ainstrs' ∈ ts1 --> ts2. (* valid_admin_instr *)
-Proof with eauto.
-  introv HVS HVA HVAIS HSC.
-  remember (S, F, ainstrs) as SF.
-  remember (S', F', ainstrs') as SF'.
-  gen S F ainstrs S' F' ainstrs' C ts1 ts2.
-  induction HSC; intros;
-    inverts HeqSF; inverts HeqSF'.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - 
-
-(*
-        ainstrs  :     ts2 --> ts5
-      E[ainstrs] : ts1     -->     ts6
-        ainstrs' :     ts2 --> ts3
-   -------------------------------------
-      E[ainstrs']: ts1     -->     ts4
-
-    ⊢S S ok ->                                (* valid_store  *) 
-    S ⊢A F ∈ C ->                             (* valid_frame *)
-    (S,C) ⊢a* E[ainstrs0] ∈ ts1 --> ts2 ->    (* valid_admin_instr *)
-
-    (S, F, E[ainstrs0]) ↪ (S', F', E[ainstrs0']) ->  (* HSC *)
-    (S, F, ainstrs0) ↪ (S', F', ainstrs'0) ->        (* HSC - sub-structure *)
-
-    (S,C,labels ts...) ⊢a* ainstrs0 ∈ ts3 --> ts4 ->    (* valid_admin_instr *)
-
-    (S,C,labels ts...) ⊢a* ainstrs0' ∈ ts3 --> ts4 ->    (* valid_admin_instr *)
-
-key point: E might be label and cons label, [plug__E] uncons the labels.
- -------------------------------------------------------------------------------
-
-    ⊢S S ⪯ S' /\                             (* weakening *)
-      ⊢S S' ok /\                            (* valid_store *)
-      S' ⊢A F' ∈ C /\                        (* valid_frame  *)
-      (S',C) ⊢a* E[ainstrs'0] ∈ ts1 --> ts2. (* valid_admin_instr *)
-*)
-
-    specialize (plug_E_inner _ _ _ _ _ _ HVAIS) as (ts3 & ts4 & C' & Hinner & HEC).
-    edestruct IHHSC with (S := S0) (C := C') as (HES & HVS' & HVA' & HVAIS') ...
-
-(* labels have no effect on valid frame and valid moduleinst?? *)
-Lemma VMI_weakening_ES : forall S C C' mi,
-      ⊢C C ⪯ C' ->
-    S ⊢mi mi ∈ C ->
-    S ⊢mi mi ∈ C'. (* this is not true since valid_moduleinst ask labels to be ϵ! *)
-Proof with eauto.
-  introv HEC HVMI.
-  inverts HVMI.
-  inverts HEC.
-  unfold prepend_labels. simpl. rewrite app_nil_r.
-Abort.
-
-Lemma VF_weakening_ES : forall S F C C' ,
-      ⊢C C ⪯ C' ->
-    S ⊢A F ∈ C ->
-    S ⊢A F ∈ C'.
-Proof with eauto.
-Abort.
-
-    admit.
+(* The frame context remains fixed while the instruction context accumulates
+   labels as reduction descends through evaluation contexts. *)
+Theorem preservation_generalized :
+  forall S F S' F' CF C ainstrs ainstrs' ts1 ts2,
+    ⊢S S ok ->
+    S ⊢A F ∈ CF ->
+    same_context_except_labels CF C ->
+    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
+    (S,F,ainstrs) ↪ (S',F',ainstrs') ->
+    ⊢S S ⪯ S' /\
+    ⊢S S' ok /\
+    S' ⊢A F' ∈ CF /\
+    (S',C) ⊢a* ainstrs' ∈ ts1 --> ts2.
+Proof with eauto using same_context_except_labels_trans.
+  introv HVS HVA HC HVAIS HSC.
+  gen CF C ts1 ts2.
+  dependent induction HSC; intros.
+  - (* SC_simple *)
     splits...
-    (* only valid_admin_instrs remain, but with different store (up to weakening),
-       we need state some a store weakening version of [plug_E_same]
-     *)
+    + apply (extend_store_refl _ HVS).
+    + eapply preservation_SC_simple...
+  - (* SC_block *)
+    splits...
+    + apply (extend_store_refl _ HVS).
+    + eapply preservation_SC_block...
+  - (* SC_loop *)
+    splits...
+    + apply (extend_store_refl _ HVS).
+    + eapply preservation_SC_loop...
+  - (* SC_if__nez *)
+    splits...
+    + apply (extend_store_refl _ HVS).
+    + eapply preservation_SC_if__nez
+        with (c := c) (instrs2 := instrs2)...
+  - (* SC_if__eqz *)
+    splits...
+    + apply (extend_store_refl _ HVS).
+    + eapply preservation_SC_if__eqz
+        with (c := I32.zero) (instrs1 := instrs1)...
+  - (* SC_E *)
+    destruct (plug_E_decompose _ _ _ _ _ _ HVAIS)
+      as (C' & ts3 & ts4 & Hinner & Hcontext).
+    pose proof (valid_eval_context_same_except_labels
+                  _ _ _ _ _ _ _ _ Hcontext) as HCinner.
+    edestruct IHHSC
+      with (CF := CF) (C := C') (ts1 := ts3) (ts2 := ts4)
+      as (HES & HVS' & HVA' & Hinner')...
+    splits...
+    eapply plug_E_same; eauto.
+  - (* SC_trap__E *)
+    splits...
+    + apply (extend_store_refl _ HVS).
+    + rewrite <- (app_nil_l [Trap]).
+      eapply VAIS_snoc with (ts0 := []) (ts := ts1).
+      * simpl. constructor.
+      * constructor.
+Qed.
 
-Abort.
+Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
+    ⊢S S ok ->
+    S ⊢A F ∈ C ->
+    (S,C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
+    (S,F,ainstrs) ↪ (S',F',ainstrs') ->
+    ⊢S S ⪯ S' /\
+    ⊢S S' ok /\
+    S' ⊢A F' ∈ C /\
+    (S',C) ⊢a* ainstrs' ∈ ts1 --> ts2.
+Proof with eauto using same_context_except_labels_refl.
+  introv HVS HVA HVAIS HSC.
+  eapply preservation_generalized with (CF := C) (C := C).
+  - exact HVS.
+  - exact HVA.
+  - apply same_context_except_labels_refl.
+  - exact HVAIS.
+  - exact HSC.
+Qed.
 
+(* ================================================================= *)
+(** ** Preservation - Top Level Frame *)
 
+Lemma VMI_with_ret_none : forall S mi C,
+    S ⊢mi mi ∈ C ->
+    S ⊢mi mi ∈ C with_return = None.
+Proof with eauto.
+  introv HVMI.
+  inverts HVMI.
+  econstructor...
+Qed.
+
+Lemma VA_with_ret_none : forall S F C,
+    S ⊢A F ∈ C ->
+    S ⊢A F ∈ C with_return = None.
+Proof with eauto.
+  introv HVA.
+  inverts HVA as HVMI HVVS.
+  asserts_rewrite
+    ((C0 with_locals = ts with_return = None) =
+     (C0 with_return = None with_locals = ts))...
+  eapply VA...
+  apply VMI_with_ret_none...
+Qed.
+
+Corollary preservation__toplevel : forall S T S' T' rt,
+    ⊢c (S,T) ∈ rt ->
+    $(S,T) ↪ $(S',T') ->
+    ⊢c (S',T') ∈ rt /\ ⊢S S ⪯ S'.
+Proof with eauto.
+  introv HVC.
+  inverts HVC as HVS HVT.
+  inverts HVT as HVA HVAIS.
+  introv HSC. simpl in HSC.
+  destruct T' as [F' ainstrs'].
+  destruct (preservation S F S' F' (C with_return = None)
+            ainstrs ainstrs' [] rt)
+    as (HES & HVS' & HVA' & HVAIS')...
+  eapply VA_with_ret_none...
+Qed.
 
 (* ================================================================= *)
 (** ** Archive *)
