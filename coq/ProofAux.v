@@ -337,7 +337,11 @@ Proof with auto.
   - simpl in Heq. inverts Heq.
   - destruct xs as [|b xs].
     + simpl in Heq. inverts Heq. reflexivity.
-    + simpl in Heq.
+    + change
+        (match unsnoc (b :: xs) with
+         | Some (cdr, car) => Some (a :: cdr, car)
+         | None => None
+         end = Some (xs', x)) in Heq.
       destruct (unsnoc (b :: xs)) as [[tail car] |] eqn:Htail.
       * inverts Heq.
         specialize (IHxs tail car eq_refl).
