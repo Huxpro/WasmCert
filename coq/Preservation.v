@@ -1437,6 +1437,7 @@ Proof with eauto.
       as (C' & ts__in & ts__out & Hinner & Hcontext).
     exists C' ts__in ts__out.
     split; [exact Hinner |].
+    rewrite app_nil_r.
     eapply VEC_label with (ts0 := ts0); eauto.
 Qed.
 
