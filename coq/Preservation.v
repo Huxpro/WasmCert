@@ -1420,22 +1420,21 @@ Proof with eauto.
   gen C ainstrs ts1 ts2.
   induction E; introv HVAIS; simpl in *.
   - exists C ts1 ts2.
-    split...
-    constructor.
+    split; [assumption | constructor].
   - apply vais_app3 in HVAIS.
     destruct HVAIS as (ts3 & ts4 & Hvals & HE & Hrest).
     destruct (IHE _ _ _ _ HE) as (C' & ts5 & ts6 & Hinner & Hcontext).
     exists C' ts5 ts6.
-    split...
-    eapply VEC_seq...
+    split; [exact Hinner |].
+    eapply VEC_seq; eauto.
   - inverts HVAIS as HVAIS' HVAI Heq;
       try (symmetry in Heq; invert_eq_snoc_app Heq).
     inverts HVAI as Hcont Hbody.
     destruct (IHE _ _ _ _ Hbody)
       as (C' & ts__in & ts__out & Hinner & Hcontext).
     exists C' ts__in ts__out.
-    split...
-    eapply VEC_label...
+    split; [exact Hinner |].
+    eapply VEC_label; eauto.
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
