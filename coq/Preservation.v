@@ -1594,6 +1594,7 @@ Proof with eauto using same_context_except_labels_trans.
       as (HES & HVS' & HVA' & Hinner')...
     splits...
     eapply plug_E_same; eauto.
+  Show Existentials.
 Qed.
 
 Theorem preservation : forall S F S' F' C ainstrs ainstrs' ts1 ts2,
