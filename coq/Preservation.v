@@ -1438,7 +1438,10 @@ Proof with eauto.
     exists C' ts__in ts__out.
     split; [exact Hinner |].
     rewrite app_nil_r.
-    eapply VEC_label with (ts0 := ts0); eauto.
+    eapply VEC_label with (ts0 := ts0) (ts1 := ts1) (ts2 := ts4).
+    + reflexivity.
+    + exact Hcont.
+    + exact Hcontext.
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
