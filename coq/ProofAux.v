@@ -699,7 +699,7 @@ Proof with eauto.
   - rewrite app_assoc.
     eapply VAIS_snoc.
     + rewrite <- app_assoc.
-      exact IHHVAIS.
+      eapply IHHVAIS; reflexivity.
     + exact H.
 Qed.
 
