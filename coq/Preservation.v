@@ -1400,13 +1400,13 @@ Inductive valid_eval_context (S : store) :
       valid_eval_context S C (E_seq vals E ainstrs) C'
                          ts3 ts4 ts1 ts6
 
-  | VEC_label : forall C C' n ainstrs0 E ts1 ts2 ts3 ts4,
+  | VEC_label : forall C C' n ainstrs0 E ts0 ts1 ts2 ts3 ts4,
       length ts1 = n ->
       (S,C) ⊢a* ainstrs0 ∈ ts1 --> ts2 ->
       valid_eval_context S (C,labels ts1) E C'
                          ts3 ts4 [] ts2 ->
       valid_eval_context S C (E_label n ainstrs0 E) C'
-                         ts3 ts4 [] ts2.
+                         ts3 ts4 ts0 (ts0 ++ ts2).
 
 Hint Constructors valid_eval_context.
 
@@ -1429,6 +1429,8 @@ Proof with eauto.
     eapply VEC_seq; eauto.
   - inverts HVAIS as HVAIS' HVAI Heq;
       try (symmetry in Heq; invert_eq_snoc_app Heq).
+    inverts HVAIS'.
+    simpl in *.
     inverts HVAI as Hcont Hbody.
     destruct (IHE _ _ _ _ Hbody)
       as (C' & ts__in & ts__out & Hinner & Hcontext).
