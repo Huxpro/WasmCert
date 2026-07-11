@@ -696,9 +696,9 @@ Proof with eauto.
   introv HVAIS.
   dependent induction HVAIS.
   - constructor.
-  - rewrite <- app_assoc.
+  - rewrite app_assoc.
     eapply VAIS_snoc.
-    + rewrite app_assoc.
+    + rewrite <- app_assoc.
       exact IHHVAIS.
     + exact H.
 Qed.
