@@ -1450,6 +1450,13 @@ Proof with eauto.
     exact (@VEC_label S C C' (length ts1) cont E
                       ts0 ts1 ts4 ts__in ts__out
                       eq_refl Hcont Hcontext).
+  Unshelve.
+  all: match goal with
+       | Hnil : _ ++ [_] = [] |- _ =>
+           apply app_eq_nil in Hnil;
+           destruct Hnil as [_ Hnil];
+           inversion Hnil
+       end.
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
