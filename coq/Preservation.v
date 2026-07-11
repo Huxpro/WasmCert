@@ -1442,6 +1442,8 @@ Proof with eauto.
     + reflexivity.
     + exact Hcont.
     + exact Hcontext.
+  Unshelve.
+  all: eauto.
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
