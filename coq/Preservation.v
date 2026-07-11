@@ -18,6 +18,9 @@ Set Printing Coercions.
 (* Sometimes. *)
 (* Unset Printing Notations. *)
 
+(* The experimenting section on [preservation_SC_E] declares helper
+   lemmas inside an open proof; Coq >= 8.9 rejects that by default. *)
+Set Nested Proofs Allowed.
 
 (**************************************************************)
 (** ** Implicit Types - Copied from ExtendedTyping *)
