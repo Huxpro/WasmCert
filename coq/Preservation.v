@@ -1469,7 +1469,8 @@ Proof with eauto.
   - assumption.
   - apply vais_app3.
     exists ts2 ts5...
-  - eapply VAIS_snoc with (ts := []).
+  - rewrite <- (app_nil_l [Label n ainstrs0 (plug__E E ainstrs)]).
+    eapply VAIS_snoc with (ts := []).
     + rewrite app_nil_r.
       constructor.
     + eapply VAI_label.
