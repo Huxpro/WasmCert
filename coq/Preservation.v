@@ -1444,6 +1444,15 @@ Proof with eauto using vais_store_irrelevant.
   induction Hcontext...
 Qed.
 
+Lemma valid_eval_context_extends :
+  forall S C C' E ts1 ts2 ts3 ts4,
+    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+    ⊢C C ⪯ C'.
+Proof with eauto using extend_context_refl, extend_context_cons.
+  introv Hcontext.
+  induction Hcontext...
+Qed.
+
 Lemma plug_E_decompose : forall S C E ainstrs ts1 ts2,
    (S,C) ⊢a* plug__E E ainstrs ∈ ts1 --> ts2 ->
    exists C' ts3 ts4,
