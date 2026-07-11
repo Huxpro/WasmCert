@@ -689,20 +689,29 @@ Qed.
 (* ----------------------------------------------------------------- *)
 (** *** Weakening *)
 
-(* Can be proved by using the properties
-   where the [VAIS_nil] case can choose its polymorphic type underterminstically. 
-*)
-Lemma vais_weakening : forall S C ainstrs ts0 ts1,
-    (S, C) ⊢a* ainstrs ∈ ts0 --> (ts0 ++ ts1) <->
-    (S, C) ⊢a* ainstrs ∈ [] --> ([] ++ ts1).
-Proof with auto.
-Admitted.
-
 Lemma vais_weakening_app : forall S C ainstrs ts0 ts1 ts2,
-    (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2) <->
-    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2.
-Proof with auto.
-Admitted.
+    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
+    (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2).
+Proof with eauto.
+  introv HVAIS.
+  induction HVAIS.
+  - constructor.
+  - rewrite <- app_assoc.
+    eapply VAIS_snoc.
+    + rewrite app_assoc.
+      exact IHHVAIS.
+    + exact H.
+Qed.
+
+Lemma vais_weakening : forall S C ainstrs ts0 ts1,
+    (S, C) ⊢a* ainstrs ∈ [] --> ts1 ->
+    (S, C) ⊢a* ainstrs ∈ ts0 --> (ts0 ++ ts1).
+Proof with eauto.
+  introv HVAIS.
+  replace ts0 with (ts0 ++ []) at 1 by apply app_nil_r.
+  eapply vais_weakening_app.
+  exact HVAIS.
+Qed.
 
 (* ----------------------------------------------------------------- *)
 (** *** Lifting *)
@@ -711,7 +720,13 @@ Lemma vis_to_vais : forall S C instrs ts0 ts1,
         C  ⊢*   instrs ∈ ts0 --> ts1 ->
     (S, C) ⊢a* ↑instrs ∈ ts0 --> ts1.
 Proof with auto.
-Admitted.
+  introv HVIS.
+  induction HVIS.
+  - simpl. constructor.
+  - rewrite up_app.
+    eapply VAIS_snoc...
+    constructor...
+Qed.
 
 
 (* ----------------------------------------------------------------- *)
@@ -760,8 +775,15 @@ Proof with eauto.
       eapply snoc_app_inj in Heqapp.
       inverts Heqapp. 
       edestruct IHHVAISapp as (ts4' & HV1 & HV2)...
+      exists ts4'. split...
+      eapply VAIS_snoc...
   --- (* <- *)
-Admitted.    
+  intros (ts2 & HVAIS0 & HVAIS1).
+  induction HVAIS1.
+  - rewrite app_nil_r...
+  - rewrite <- app_assoc.
+    eapply VAIS_snoc...
+Qed.
 
 
 (*
@@ -867,6 +889,23 @@ Proof with auto.
          rewrite app_nil_r...
 Qed.
 
+Lemma vais_vals_intro : forall S C vals ts,
+    (S,C) ⊢a* ⇈vals ∈ ts --> (ts ++ map type_of vals).
+Proof with eauto.
+  introv.
+  gen ts.
+  induction vals using rev_ind; intros.
+  - simpl. rewrite app_nil_r. constructor.
+  - rewrite map_app.
+    rewrite upup_app.
+    simpl.
+    rewrite <- app_assoc.
+    eapply VAIS_snoc with (ts := []).
+    + rewrite app_nil_r.
+      apply IHvals.
+    + constructor. constructor.
+Qed.
+
 
 (* ----------------------------------------------------------------- *)
 (** *** S C Irrelevant Weakening *)
@@ -944,8 +983,10 @@ Proof with auto.
   destruct HVAIS as (ts3 & Hvals1 & Hvals2).
   rewrite app_assoc in Hvals2.
   specialize (vais_vals_len _ _ _ _ _ _ Hlength Hvals2) as Heq; subst.
-  apply vais_weakening in Hvals2.
-  apply vais_weakening...
+  apply vais_vals in Hvals2.
+  apply app_inv_head in Hvals2.
+  rewrite Hvals2.
+  apply vais_vals_intro.
 Qed.
 
 
@@ -973,7 +1014,13 @@ Proof with auto.
   rewrite app_assoc in Hvals2.
   specialize (vais_vals_len _ _ _ _ _ _ Hlength2 Hvals2) as H2.
   splits; subst...
-  - apply vais_weakening in Hvals1. apply vais_ts_app_nil_l...
-  - apply vais_weakening in Hvals2. apply vais_ts_app_nil_l...
+  - apply vais_vals in Hvals1.
+    apply app_inv_head in Hvals1.
+    rewrite Hvals1.
+    apply vais_vals_intro.
+  - apply vais_vals in Hvals2.
+    apply app_inv_head in Hvals2.
+    rewrite Hvals2.
+    apply vais_vals_intro.
 Qed.
   
