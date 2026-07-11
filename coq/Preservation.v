@@ -1565,13 +1565,15 @@ Qed.
   [E_label] and retains the surrounding typing derivations.
 
 *)
-Lemma plug_E_same : forall S C C' E ainstrs' ts1 ts2 ts3 ts4,
+Lemma plug_E_same : forall S S' C C' E ainstrs' ts1 ts2 ts3 ts4,
    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
-   (S, C') ⊢a* ainstrs' ∈ ts3 --> ts4 ->
-   (S, C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts2.
+   (S', C') ⊢a* ainstrs' ∈ ts3 --> ts4 ->
+   (S', C) ⊢a* (plug__E E ainstrs') ∈ ts1 --> ts2.
 Proof.
-  intros.
-  eapply plug_E_recompose; eassumption.
+  intros S S' C C' E ainstrs' ts1 ts2 ts3 ts4 Hcontext Hinner.
+  eapply plug_E_recompose; [| exact Hinner].
+  eapply valid_eval_context_store_irrelevant.
+  exact Hcontext.
 Qed.
 
 
