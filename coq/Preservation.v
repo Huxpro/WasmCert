@@ -1429,14 +1429,14 @@ Proof with eauto.
     exact (@VEC_seq S C C' vals E ainstrs
                     ts1 ts3 ts5 ts6 ts4 ts2
                     Hvals Hcontext Hrest).
-  - inverts HVAIS as HVAIS' HVAI Heq;
-      try (symmetry in Heq; invert_eq_snoc_app Heq);
-      try match goal with
-          | Hnil : _ ++ [_] = [] |- _ =>
-              apply app_eq_nil in Hnil;
-              destruct Hnil as [_ Hnil];
-              inversion Hnil
-          end.
+  - inverts HVAIS as HVAIS' HVAI Heq.
+    all: try (symmetry in Heq; invert_eq_snoc_app Heq).
+    all: try match goal with
+             | Hnil : _ ++ [_] = [] |- _ =>
+                 apply app_eq_nil in Hnil;
+                 destruct Hnil as [_ Hnil];
+                 inversion Hnil
+             end.
     inverts HVAIS'.
     simpl in *.
     repeat rewrite app_nil_r in *.
