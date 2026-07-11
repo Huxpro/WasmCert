@@ -1404,10 +1404,13 @@ Lemma valid_eval_context_same_except_labels :
 Proof with eauto using same_context_except_labels_refl,
                        same_context_except_labels_trans.
   introv Hcontext.
-  induction Hcontext...
-  eapply same_context_except_labels_trans.
-  - constructor; reflexivity.
+  induction Hcontext.
+  - apply same_context_except_labels_refl.
   - exact IHHcontext.
+  - eapply same_context_except_labels_trans
+      with (C2 := C,labels ts1).
+    + constructor; reflexivity.
+    + exact IHHcontext.
 Qed.
 
 Lemma plug_E_decompose : forall S C E ainstrs ts1 ts2,
