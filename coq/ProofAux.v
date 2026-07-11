@@ -340,8 +340,8 @@ Proof with auto.
     + simpl in Heq.
       destruct (unsnoc (b :: xs)) as [[tail car] |] eqn:Htail.
       * inverts Heq.
-        apply IHxs in Htail.
-        subst.
+        specialize (IHxs tail car eq_refl).
+        rewrite IHxs.
         reflexivity.
       * inverts Heq.
 Qed.
