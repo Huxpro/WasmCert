@@ -1469,8 +1469,14 @@ Proof with eauto.
   - assumption.
   - apply vais_app3.
     exists ts2 ts5...
-  - econstructor...
-    econstructor...
+  - eapply VAIS_snoc with (ts := []).
+    + rewrite app_nil_r.
+      constructor.
+    + eapply VAI_label.
+      * exact H.
+      * exact H0.
+      * apply IHHcontext.
+        exact Hinner.
 Qed.
 
 
