@@ -909,8 +909,12 @@ From this pair we can show [ts0 = ts4].
 
       eapply vais_app.
       exists ts; split.
-      eapply vais_weakening...
-      eapply vais_vals_SC_weakening...
+      assert (Htypes : ts = map type_of vals).
+      { apply vais_vals in HVAIS'.
+        apply app_inv_head in HVAIS'.
+        exact HVAIS'. }
+      rewrite Htypes.
+      apply vais_vals_intro.
       apply vis_to_vais...
 
     + (* [VBT_valtype__some] *)
@@ -1026,8 +1030,12 @@ Proof with eauto.
       ++ (* Body *)
         eapply vais_app.
         exists ts; split.
-        eapply vais_weakening...
-        eapply vais_vals_SC_weakening...
+        assert (Htypes : ts = map type_of vals).
+        { apply vais_vals in HVAIS'.
+          apply app_inv_head in HVAIS'.
+          exact HVAIS'. }
+        rewrite Htypes.
+        apply vais_vals_intro.
         eapply vis_to_vais...
 
     + (* [VBT_valtype__some] *)
