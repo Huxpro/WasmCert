@@ -1430,7 +1430,10 @@ Proof with eauto.
                     ts1 ts3 ts5 ts6 ts4 ts2
                     Hvals Hcontext Hrest).
   - inverts HVAIS as HVAIS' HVAI Heq;
-      try (symmetry in Heq; invert_eq_snoc_app Heq).
+      try (symmetry in Heq; invert_eq_snoc_app Heq);
+      try match goal with
+          | Hnil : _ ++ [_] = [] |- _ => invert_eq_snoc_app Hnil
+          end.
     inverts HVAIS'.
     simpl in *.
     repeat rewrite app_nil_r in *.
@@ -1443,7 +1446,6 @@ Proof with eauto.
     exact (@VEC_label S C C' (length ts1) cont E
                       ts0 ts1 ts4 ts__in ts__out
                       eq_refl Hcont Hcontext).
-  Show Existentials.
 Qed.
 
 Lemma plug_E_recompose : forall S C C' E ainstrs ts1 ts2 ts3 ts4,
