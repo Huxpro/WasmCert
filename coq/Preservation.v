@@ -1410,6 +1410,40 @@ Inductive valid_eval_context (S : store) :
 
 Hint Constructors valid_eval_context.
 
+Scheme valid_config_store_ind := Induction for valid_config Sort Prop
+with valid_thread_store_ind := Induction for valid_thread Sort Prop
+with valid_frame_store_ind := Induction for valid_frame Sort Prop
+with valid_admin_instr_store_ind := Induction for valid_admin_instr Sort Prop
+with valid_admin_instrs_store_ind := Induction for valid_admin_instrs Sort Prop.
+
+(* The store index is phantom in administrative typing: no constructor
+   inspects it.  This mutual induction is still required because labels contain
+   recursively typed administrative instruction lists. *)
+Lemma vais_store_irrelevant : forall S C ainstrs ft,
+    (S,C) ⊢a* ainstrs ∈ ft ->
+    forall S', (S',C) ⊢a* ainstrs ∈ ft.
+Proof with eauto.
+  introv HVAIS.
+  induction HVAIS using valid_admin_instrs_store_ind
+    with (P := fun _ _ _ => True)
+         (P0 := fun _ _ _ _ => True)
+         (P1 := fun _ _ _ _ => True)
+         (P2 := fun SC ainstr ft _ =>
+                  forall S', (S', snd SC) ⊢a ainstr ∈ ft)
+         (P3 := fun SC ainstrs ft _ =>
+                  forall S', (S', snd SC) ⊢a* ainstrs ∈ ft);
+    simpl in *; intros...
+Qed.
+
+Lemma valid_eval_context_store_irrelevant :
+  forall S S' C C' E ts1 ts2 ts3 ts4,
+    valid_eval_context S C E C' ts3 ts4 ts1 ts2 ->
+    valid_eval_context S' C E C' ts3 ts4 ts1 ts2.
+Proof with eauto using vais_store_irrelevant.
+  introv Hcontext.
+  induction Hcontext...
+Qed.
+
 Lemma plug_E_decompose : forall S C E ainstrs ts1 ts2,
    (S,C) ⊢a* plug__E E ainstrs ∈ ts1 --> ts2 ->
    exists C' ts3 ts4,
