@@ -1431,6 +1431,7 @@ Proof with eauto.
       try (symmetry in Heq; invert_eq_snoc_app Heq).
     inverts HVAIS'.
     simpl in *.
+    repeat rewrite app_nil_r in *.
     inverts HVAI as Hcont Hbody.
     destruct (IHE _ _ _ _ Hbody)
       as (C' & ts__in & ts__out & Hinner & Hcontext).
