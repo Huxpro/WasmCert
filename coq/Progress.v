@@ -11,6 +11,7 @@ From Wasm Require Export Validation.
 From Wasm Require Export Execution.
 From Wasm Require Export ExtendedTyping.
 From Wasm Require Export ProofAux.
+From Wasm Require Export Preservation.
 
 (* Coercions are too confusing during proofs. *)
 Set Printing Coercions.
@@ -158,569 +159,383 @@ Qed.
 
 
 (* ================================================================= *)
-(** ** Lemma Forall2 *)
+(** ** Block Contexts *)
 
-(* A specialized version of [Forall2_app_inv_r] *)
-Lemma Forall2_snoc_app_r: forall {X Y : Type} {R: X -> Y -> Prop} (xs: list X) (ys': list Y) (y: Y),
-     Forall2 R xs (ys' ++ [y]) ->
-     exists xs' x, Forall2 R xs' ys' /\ R x y /\ xs = xs' ++ [x].
+(* Push values onto the outermost level of a block context. *)
+Definition B_prepend {k} (vals: list val) (B: block_context k) : block_context k :=
+  match B with
+  | B_nil vals' ainstrs => B_nil (vals ++ vals') ainstrs
+  | B_cons vals' n cont B' ainstrs => B_cons (vals ++ vals') n cont B' ainstrs
+  end.
+
+(* Append instructions to the outermost level of a block context. *)
+Definition B_append {k} (B: block_context k) (rest: list admin_instr) : block_context k :=
+  match B with
+  | B_nil vals ainstrs => B_nil vals (ainstrs ++ rest)
+  | B_cons vals n cont B' ainstrs => B_cons vals n cont B' (ainstrs ++ rest)
+  end.
+
+Lemma plug_B_prepend : forall k (B: block_context k) vals hole,
+    ⇈vals ++ plug__B B hole = plug__B (B_prepend vals B) hole.
 Proof.
-  introv HForall2.
-  apply Forall2_app_inv_r in HForall2.
-  destruct HForall2 as (xs' & unit & Hxs' & Hunit & Heq).
-  inverts Hunit as HRxy Hnil.
-  inverts Hnil.
-  exists xs' x.
-  splits; auto.
+  intros. destruct B; simpl; rewrite upup_app, app_assoc; reflexivity.
 Qed.
 
-Lemma Forall2_snoc_app_r2: forall {X Y : Type} {R: X -> Y -> Prop} (xs: list X) (ys': list Y) (y1 y2: Y),
-     Forall2 R xs (ys' ++ [y1; y2]) ->
-     exists xs' x1 x2, Forall2 R xs' ys' /\ R x1 y1 /\ R x2 y2 /\ xs = xs' ++ [x1; x2].
-Proof with eauto.
-  introv HForall2.
-  apply Forall2_app_inv_r in HForall2.
-  destruct HForall2 as (l & r & Hl & Hr & Heq).
-  inverts Hr as Hr1 Hr'.
-  inverts Hr' as Hr2 Hr''.
-  inverts Hr''.
-  exists l x x0. splits...
-Qed.
-
-Lemma Forall2_snoc_app_r3: forall {X Y : Type} {R: X -> Y -> Prop} (xs: list X) (ys': list Y) (y1 y2 y3: Y),
-     Forall2 R xs (ys' ++ [y1; y2; y3]) ->
-     exists xs' x1 x2 x3, Forall2 R xs' ys' /\ R x1 y1 /\ R x2 y2 /\ R x3 y3 /\ xs = xs' ++ [x1; x2; x3].
-Proof with eauto.
-  introv HForall2.
-  apply Forall2_app_inv_r in HForall2.
-  destruct HForall2 as (l & r & Hl & Hr & Heq).
-  inverts Hr as Hr1 Hr'.
-  inverts Hr' as Hr2 Hr''.
-  inverts Hr'' as Hr3 Hr'''.
-  inverts Hr'''.
-  exists l x x0 x1. splits...
-Qed.
-
-
-Ltac invert_Forall2_app_r1 HForall2 l r Hl Hr:=
-  apply Forall2_snoc_app_r in HForall2;
-  destruct HForall2 as (l & r & Hl & Hr & _Heq);
-  rewrite _Heq.
-
-Ltac invert_Forall2_app_r2 HForall2 xs' x1 x2 Hxs' Hx1 Hx2:=
-  apply Forall2_snoc_app_r2 in HForall2;
-  destruct HForall2 as (xs' & x1 & x2 & Hxs' & Hx1 & Hx2 & _Heq);
-  rewrite _Heq.
-
-Ltac invert_Forall2_app_r3 HForall2 xs' x1 x2 x3 Hxs' Hx1 Hx2 Hx3:=
-  apply Forall2_snoc_app_r3 in HForall2;
-  destruct HForall2 as (xs' & x1 & x2 & x3 & Hxs' & Hx1 & Hx2 & Hx3 & _Heq);
-  rewrite _Heq.
-
-
-
-(* ================================================================= *)
-(** ** Build/Extract/Decompose Execution Context *)
-
-(* Decompose on left, which has to be value *)
-Lemma decompose_vals_as_E_seq: forall vals ainstrs, 
-    ⇈vals ++ ainstrs = plug__E (E_seq vals E_hole []) ainstrs.
+Lemma plug_B_append : forall k (B: block_context k) hole rest,
+    plug__B B hole ++ rest = plug__B (B_append B rest) hole.
 Proof.
-  intros. 
-  simpl in *. 
-  rewrite app_nil_r.
-  auto.
+  intros. destruct B; simpl; rewrite <- !app_assoc; reflexivity.
 Qed.
-         
-Ltac decompose_vals_as_E_seq_E vals :=
-  rewrite decompose_vals_as_E_seq;
-  remember (E_seq vals E_hole []) as E.
-
-(* Decompose on right, which has to be rest of the ainstrs *)
-Lemma decompose_rest_as_E_seq: forall ainstrs ainstrs', 
-    ainstrs ++ ainstrs' = plug__E (E_seq [] E_hole ainstrs') ainstrs.
-Proof with auto.
-  intros. 
-  simpl in *...
-Qed.
-
-Ltac decompose_rest_as_E_seq_E rest :=
-  rewrite decompose_rest_as_E_seq;
-  remember (E_seq [] E_hole rest) as E.
-
 
 
 (* ================================================================= *)
-(** ** Progress - VAIS_snoc -> SC_simple*)
+(** ** Stepping in Sequences *)
 
-Ltac step_VR_trap S F list car :=
-  right;
-  asserts_rewrite (
-    list = [Trap] ++ car
-  ); try reflexivity;
-  rewrite decompose_rest_as_E_seq;
-  exists S F [Trap]; apply SC_trap__E; simpl; discriminate.
+Lemma step_seq : forall S F vals ainstrs ainstrs' rest,
+    (S, F, ainstrs) ↪ (S, F, ainstrs') ->
+    (S, F, ⇈vals ++ ainstrs ++ rest) ↪ (S, F, ⇈vals ++ ainstrs' ++ rest).
+Proof.
+  introv HSC.
+  apply (SC_E (E_seq vals E_hole rest)). assumption.
+Qed.
 
-Ltac step_snoc_app_cdr S F HSC rest :=
-  right;
-  decompose_rest_as_E_seq_E rest;
-  destruct HSC as (S' & F' & ainstrs' & HSC);
-  exists S' F'; eexists;
-  eapply SC_E;
-  apply HSC.
+Lemma step_simple_vals : forall S F vals ainstrs ainstrs',
+    ainstrs ↪s ainstrs' ->
+    (S, F, ⇈vals ++ ainstrs) ↪ (S, F, ⇈vals ++ ainstrs').
+Proof.
+  introv HSS.
+  rewrite <- (app_nil_r ainstrs), <- (app_nil_r ainstrs').
+  apply step_seq. constructor. assumption.
+Qed.
+
+Lemma step_trap_seq : forall S F vals rest,
+    ⇈vals ++ [Trap] ++ rest <> [Trap] ->
+    (S, F, ⇈vals ++ [Trap] ++ rest) ↪ (S, F, [Trap]).
+Proof.
+  introv Hneq.
+  apply (SC_trap__E (E_seq vals E_hole rest)). assumption.
+Qed.
 
 
 (* ================================================================= *)
-(** ** Main Theorem *)
+(** ** Values *)
+
+Lemma type_of_i32 : forall (val: val),
+    type_of val = T_i32 ->
+    exists c, val = i32 c.
+Proof.
+  introv Heq. destruct val; inverts Heq. eauto.
+Qed.
+
+Lemma vbt_expand_some : forall C F bt ft,
+    C.(C_types) = F.(A_module).(MI_types) ->
+    C ⊢bt bt ∈ ft ->
+    expand F bt = Some ft.
+Proof.
+  introv Htypes HVBT.
+  inverts HVBT as; simpl; auto.
+  introv Hi. rewrite <- Htypes. assumption.
+Qed.
+
+
+(* ================================================================= *)
+(** ** Generalized Progress *)
+
+(** A well-typed instruction sequence is either
+    - a sequence of values,
+    - a [Trap],
+    - able to take a step, or
+    - breaking out of the [k] labels of a block context [B] to the
+      [j]-th label of the typing context, with as many values as that
+      label expects. *)
+Definition progress_result S F C ainstrs : Prop :=
+  (exists vals, ainstrs = ⇈vals) \/
+  ainstrs = [Trap] \/
+  (exists ainstrs', (S, F, ainstrs) ↪ (S, F, ainstrs')) \/
+  (exists k (B: block_context k) j vals ts,
+      ainstrs = plug__B B (⇈vals ++ ↑[Br (k + j)]) /\
+      C.(C_labels).[j] = Some ts /\
+      length vals = length ts).
+
+Scheme vai_mut_ind := Induction for valid_admin_instr Sort Prop
+  with vais_mut_ind := Induction for valid_admin_instrs Sort Prop.
+
+Lemma progress_ainstrs : forall S C ainstrs ts1 ts2,
+    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
+    forall F vals,
+      C.(C_types) = F.(A_module).(MI_types) ->
+      map type_of vals = ts1 ->
+      progress_result S F C (⇈vals ++ ainstrs).
+Proof.
+  introv HVAIS.
+  apply (vais_mut_ind
+    (fun SC ainstr ft _ =>
+       let (S, C) := SC in let 'FT ts1 _ := ft in
+       forall F vals,
+         C.(C_types) = F.(A_module).(MI_types) ->
+         map type_of vals = ts1 ->
+         progress_result S F C (⇈vals ++ [ainstr]))
+    (fun SC ainstrs ft _ =>
+       let (S, C) := SC in let 'FT ts1 _ := ft in
+       forall F vals,
+         C.(C_types) = F.(A_module).(MI_types) ->
+         map type_of vals = ts1 ->
+         progress_result S F C (⇈vals ++ ainstrs)))
+    with (p := (S, C)) (f := ts1 --> ts2) in HVAIS; [exact HVAIS | ..];
+    clear S C ainstrs ts1 ts2 HVAIS.
+  all: simpl.
+
+  - (* VAI_instr *)
+    introv HVI. destruct ft as [ts1 ts2]. simpl.
+    introv Htypes Hvals.
+    revert Hvals. inversion HVI; subst; clear HVI; intros Hvals.
+
+    + (* VI_const *)
+      left. exists (vals ++ [val]). rewrite upup_app. reflexivity.
+
+    + (* VI_unop *)
+      destruct vals as [ | val [ | ]]; inverts Hvals as Hval.
+      right; right; left.
+      destruct (eval_unop op val) as [[val' | ] | ] eqn:Heval.
+      * eexists. apply SC_simple. apply SS_unop__some. eassumption.
+      * eexists. apply SC_simple. apply SS_unop__none. eassumption.
+      * exfalso. eapply eval_unop_no_runtime_err; [ | eassumption]; congruence.
+
+    + (* VI_binop *)
+      destruct vals as [ | val1 [ | val2 [ | ]]]; inverts Hvals as Hval1 Hval2.
+      right; right; left.
+      destruct (eval_binop op val1 val2) as [[val' | ] | ] eqn:Heval.
+      * eexists. apply SC_simple. apply SS_binop__some. eassumption.
+      * eexists. apply SC_simple. apply SS_binop__none. eassumption.
+      * exfalso. eapply eval_binop_no_runtime_err; [ | | eassumption]; congruence.
+
+    + (* VI_testop *)
+      destruct vals as [ | val [ | ]]; inverts Hvals as Hval.
+      right; right; left.
+      destruct (eval_testop op val) as [b | ] eqn:Heval.
+      * eexists. apply SC_simple. apply SS_testop. eassumption.
+      * exfalso. eapply eval_testop_no_runtime_err; [ | eassumption]; congruence.
+
+    + (* VI_relop *)
+      destruct vals as [ | val1 [ | val2 [ | ]]]; inverts Hvals as Hval1 Hval2.
+      right; right; left.
+      destruct (eval_relop op val1 val2) as [b | ] eqn:Heval.
+      * eexists. apply SC_simple. apply SS_relop. eassumption.
+      * exfalso. eapply eval_relop_no_runtime_err; [ | | eassumption]; congruence.
+
+    + (* VI_drop *)
+      destruct vals as [ | val [ | ]]; inverts Hvals.
+      right; right; left.
+      eexists. apply SC_simple. apply SS_drop.
+
+    + (* VI_select *)
+      destruct vals as [ | val1 [ | val2 [ | val3 [ | ]]]]; inverts Hvals.
+      match goal with Hval3 : type_of val3 = T_i32 |- _ =>
+        apply type_of_i32 in Hval3 as [c ->] end.
+      right; right; left.
+      destruct (I32.eqz c) eqn:Heqz.
+      * eexists. apply SC_simple. apply SS_select2. assumption.
+      * eexists. apply SC_simple. apply SS_select1. assumption.
+
+    + (* VI_nop *)
+      destruct vals; inverts Hvals.
+      right; right; left.
+      eexists. apply SC_simple. apply SS_nop.
+
+    + (* VI_unreachable *)
+      right; right; left.
+      eexists. apply step_simple_vals. apply SS_unreachable.
+
+    + (* VI_block *)
+      right; right; left.
+      match goal with HVBT : _ ⊢bt _ ∈ ?ts1 --> ?ts2 |- _ =>
+        eexists; eapply SC_block with (ts1 := ts1) (ts2 := ts2);
+          [ reflexivity | reflexivity
+          | rewrite <- Hvals, map_length; reflexivity
+          | eapply vbt_expand_some; eassumption ] end.
+
+    + (* VI_loop *)
+      right; right; left.
+      match goal with HVBT : _ ⊢bt _ ∈ ?ts1 --> ?ts2 |- _ =>
+        eexists; eapply SC_loop with (ts1 := ts1) (ts2 := ts2);
+          [ reflexivity | reflexivity
+          | rewrite <- Hvals, map_length; reflexivity
+          | eapply vbt_expand_some; eassumption ] end.
+
+    + (* VI_if *)
+      apply map_eq_app in Hvals as (vals1 & vals2 & -> & Hvals1 & Hvals2).
+      destruct vals2 as [ | val [ | ]]; inverts Hvals2 as Hval.
+      apply type_of_i32 in Hval as [c ->].
+      rewrite upup_app, <- app_assoc.
+      right; right; left.
+      match goal with HVBT : _ ⊢bt bt ∈ _ --> _ |- _ =>
+        pose proof (vbt_expand_some _ _ _ _ Htypes HVBT) as Hexpand end.
+      destruct (I32.eqz c) eqn:Heqz;
+        [ eexists; eapply SC_if__eqz with (vals := vals1)
+        | eexists; eapply SC_if__nez with (vals := vals1) ];
+        try eassumption; try reflexivity;
+        rewrite <- Hvals1, map_length; reflexivity.
+
+    + (* VI_br *)
+      apply map_eq_app in Hvals as (vals1 & vals2 & -> & Hvals1 & Hvals2).
+      right; right; right.
+      exists 0 (B_nil vals1 []) l vals2 ts.
+      splits; auto.
+      * simpl. rewrite upup_app, <- app_assoc, app_nil_r. reflexivity.
+      * rewrite <- Hvals2, map_length. reflexivity.
+
+    + (* VI_br_if *)
+      apply map_eq_app in Hvals as (vals1 & vals2 & -> & Hvals1 & Hvals2).
+      destruct vals2 as [ | val [ | ]]; inverts Hvals2 as Hval.
+      apply type_of_i32 in Hval as [c ->].
+      rewrite upup_app, <- app_assoc.
+      right; right; left.
+      destruct (I32.eqz c) eqn:Heqz.
+      * eexists. apply step_simple_vals. apply SS_br_if2. assumption.
+      * eexists. apply step_simple_vals. apply SS_br_if1. assumption.
+
+    + (* VI_br_table *)
+      apply map_eq_app in Hvals as (vals1 & vals2 & -> & Hvals1 & Hvals2).
+      apply map_eq_app in Hvals2 as (vals2' & vals3 & -> & Hvals2 & Hvals3).
+      destruct vals3 as [ | val [ | ]]; inverts Hvals3 as Hval.
+      apply type_of_i32 in Hval as [c ->].
+      rewrite !upup_app, <- !app_assoc, app_assoc, <- upup_app.
+      right; right; left.
+      destruct (nth_error ls (I32.to_nat c)) as [l__i | ] eqn:Hnth.
+      * eexists. apply step_simple_vals. apply SS_br_table__i. eassumption.
+      * eexists. apply step_simple_vals. apply SS_br_table__N.
+        apply nth_error_None. assumption.
+
+  - (* VAI_trap *)
+    introv _ Htypes Hvals.
+    destruct vals as [ | val vals].
+    + right; left. reflexivity.
+    + right; right; left.
+      eexists. rewrite <- (app_nil_r [Trap]).
+      apply step_trap_seq. simpl. discriminate.
+
+  - (* VAI_label *)
+    introv Hn HVAIS__cont IH__cont HVAIS__body IH__body.
+    introv Htypes Hvals.
+    destruct vals; inverts Hvals. simpl.
+    destruct (IH__body F [] Htypes eq_refl)
+      as [(vals & Hbody) | [Hbody | [(body' & HSC) | (k & B & j & vals & ts & Hbody & Hj & Hlen)]]];
+      simpl in *; subst.
+    + (* body is values *)
+      right; right; left.
+      eexists. apply SC_simple. eapply SS_block__exit. reflexivity.
+    + (* body is [Trap] *)
+      right; right; left.
+      eexists. apply (SC_trap__E (E_label (length ts1) ainstrs0 E_hole)).
+      simpl. discriminate.
+    + (* body steps *)
+      right; right; left.
+      eexists. apply (SC_E (E_label (length ts1) ainstrs0 E_hole)). eassumption.
+    + (* body breaks *)
+      destruct j as [ | j]; simpl in Hj.
+      * (* to this label *)
+        inverts Hj.
+        right; right; left.
+        rewrite Nat.add_0_r in *.
+        eexists. apply SC_simple. apply SS_br. assumption.
+      * (* to an outer label *)
+        right; right; right.
+        exists (k + 1) (B_cons [] (length ts1) ainstrs0 B []) j vals ts.
+        splits; auto.
+        simpl. replace (k + 1 + j) with (k + Datatypes.S j) by lia.
+        reflexivity.
+
+  - (* VAIS_empty *)
+    introv Htypes Hvals.
+    left. exists vals. rewrite app_nil_r. reflexivity.
+
+  - (* VAIS_snoc *)
+    introv HVAIS IH HVAI IH__N Htypes Hvals.
+    destruct (IH F vals Htypes Hvals)
+      as [(vals' & Hvals') | [Htrap | [(ainstrs' & HSC) | (k & B & j & vals' & ts' & Hbreak & Hj & Hlen)]]].
+    + (* values: look at the last instruction *)
+      assert (Htypes' : map type_of vals' = ts0 ++ ts).
+      { assert (HVAIS' : (S, C) ⊢a* ⇈vals ++ ainstrs ∈ [] --> (ts0 ++ ts)).
+        { apply vais_app. exists ts1. split; auto.
+          rewrite <- Hvals. apply vais_vals_intro. }
+        rewrite Hvals' in HVAIS'.
+        apply vais_vals in HVAIS'. auto. }
+      apply map_eq_app in Htypes' as (vals0 & vals1 & -> & _ & Hvals1).
+      rewrite app_assoc, Hvals', upup_app, <- app_assoc.
+      destruct (IH__N F vals1 Htypes Hvals1)
+        as [(vals2 & Hvals2) | [Htrap | [(ainstrs' & HSC) | (k & B & j & vals2 & ts' & Hbreak & Hj & Hlen)]]].
+      * left. exists (vals0 ++ vals2). rewrite Hvals2, upup_app. reflexivity.
+      * rewrite Htrap.
+        destruct vals0 as [ | val vals0].
+        -- right; left. reflexivity.
+        -- right; right; left.
+           eexists. rewrite <- (app_nil_r [Trap]).
+           apply step_trap_seq. simpl. discriminate.
+      * right; right; left.
+        eexists. rewrite <- (app_nil_r (⇈vals1 ++ [ainstr__N])).
+        apply step_seq. eassumption.
+      * right; right; right.
+        exists k (B_prepend vals0 B) j vals2 ts'.
+        rewrite Hbreak, plug_B_prepend. auto.
+    + (* trap *)
+      rewrite app_assoc, Htrap.
+      right; right; left.
+      eexists. rewrite <- (app_nil_l ([Trap] ++ [ainstr__N])).
+      apply (step_trap_seq _ _ []). simpl. discriminate.
+    + (* step *)
+      rewrite app_assoc.
+      right; right; left.
+      eexists. rewrite <- (app_nil_l ((⇈vals ++ ainstrs) ++ [ainstr__N])).
+      apply (step_seq _ _ []). eassumption.
+    + (* break *)
+      rewrite app_assoc, Hbreak, plug_B_append.
+      right; right; right.
+      exists k (B_append B [ainstr__N]) j vals' ts'. auto.
+Qed.
+
+
+(* ================================================================= *)
+(** ** Progress - Main Theorem *)
+
+Lemma valid_frame_labels : forall S F C,
+    S ⊢A F ∈ C ->
+    C.(C_labels) = [].
+Proof.
+  introv HVA.
+  inverts HVA as HVMI.
+  inverts HVMI.
+  reflexivity.
+Qed.
+
+Lemma Forall2_valid_values : forall vals,
+    Forall2 (fun val t => ⊢v val ∈ t) vals (map type_of vals).
+Proof.
+  induction vals; simpl; auto.
+Qed.
 
 Theorem progress : forall S T rt,
     ⊢c (S, T) ∈ rt ->
-    ⊢R T ∈ rt \/ exists S' F' ainstrs', $(S, T) ↪ (S', F', ainstrs').   (* TODO: [exists T'] *)
+    ⊢R T ∈ rt \/ exists S' F' ainstrs', $(S, T) ↪ (S', F', ainstrs').
 Proof with eauto.
   introv HVC.
+  inverts HVC as HVS HVT.
+  inverts HVT as HVA HVAIS.
+  destruct (progress_ainstrs _ _ _ _ _ HVAIS F [] (valid_frame_types _ _ _ HVA) eq_refl)
+    as [(vals & Hvals) | [Htrap | [(ainstrs' & HSC) | (k & B & j & vals & ts & _ & Hj & _)]]];
+    simpl in *; auto.
 
-  (* valid_config *)
-  inverts HVC as HSok HVT.
-    (* valid_store *)
-    (* valid_thread *)
-    inverts HVT as HVA HVAIS.
-      (* valid_frame *)
-      inverts HVA as HVMI HVV.
-        (* valid_moduleinst *)
-        (* valid_value *)
-      (* valid_admin_instrs *)
+  - (* values *)
+    left. subst.
+    apply vais_vals in HVAIS. simpl in HVAIS. subst.
+    apply F_vals_R. apply Forall2_valid_values.
 
-  dependent induction HVAIS.
+  - (* [Trap] *)
+    left. subst. apply F_Trap_R.
 
-  - (* VAIS_empty *)
-    left.
-    apply F_ϵ_R.
+  - (* step *)
+    right...
 
-  - remember {| A_locals := vals; A_module := mi |} as F.
-    remember (C0 with_locals = ts with_return = None) as C.
-    rename H into HVAI__N.
-    (* VAIS_snoc:
-       we could not extract this case as a lemma since we need IH.
-
-      [IHHVAIS : ... ->
-      [          ⊢R (F, ainstrs) ∈ rt 
-      [          \/ exists S' T', (S0, F, ainstrs) ↪ $(S', T')
-
-      [HVAIS : (S,C) ⊢a* ainstrs ∈ ϵ --> (ts0 ++ ts2)]
-      [HVAI__N : (S,C) ⊢a  ainstr__N ∈ ts2 --> ts3]             (* H *)
-     --------------------------------------------------------------
-       ⊢R (F, ainstrs ++ [ainstr__N])
-      [  \/ exists S' T', (S, F, ainstrs ++ [ainstr__N]) ↪ $(S', T') ]
-    *)
-    inverts HVAI__N as.
-  
-    + (* VAI_instr *)
-      intros HVI__N.
-      inverts keep HVI__N.
-
-      ++ (* VI_const *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            left.
-            asserts_rewrite ([Plain (Const val)] = ⇈[val]). reflexivity.
-            rewrite <- upup_app.
-            eapply F_vals_R.
-            apply Forall2_app.
-            +++++ rewrite app_nil_r in HForall2...
-            +++++ constructor; try constructor...
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Const val)] [Plain (Const val)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Const val)].
-            
-
-      ++ (* VI_unop *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            invert_Forall2_app_r1 HForall2 vals' val0 Hval' Hval0.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            decompose_vals_as_E_seq_E vals'.
-            exists S F.
-            destruct (eval_unop op val0) as [val__opt | ] eqn:Heval.
-            +++++ (* Ok *)
-              destruct val__opt;
-              eexists;
-                eapply SC_E;
-                eapply SC_simple.
-              ++++++ (* Ok Some *) eapply SS_unop__some...
-              ++++++ (* Ok None *) eapply SS_unop__none...
-            +++++ (* Err *)
-              inverts Hval0 as Heqtype_of.
-              destruct (eval_unop_no_runtime_err op val0 Heqtype_of Heval).
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Unop op)] [Plain (Unop op)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Unop op)].
-
-
-      ++ (* VI_binop *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            invert_Forall2_app_r2 HForall2 vals' val1 val2 Hval' Hval1 Hval2.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            decompose_vals_as_E_seq_E vals'.
-            exists S F. 
-            destruct (eval_binop op val1 val2) as [val__opt | ] eqn:Heval.
-            +++++ (* Ok *)
-              destruct val__opt;
-              eexists;
-                eapply SC_E;
-                eapply SC_simple.
-              ++++++ (* Ok Some *) eapply SS_binop__some...
-              ++++++ (* Ok None *) eapply SS_binop__none...
-            +++++ (* Err *)
-              inverts Hval1 as Heqtype_of1.
-              inverts Hval2 as Heqtype_of2.
-              destruct (eval_binop_no_runtime_err op val1 val2 Heqtype_of1 Heqtype_of2 Heval).
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Binop op)] [Plain (Binop op)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Binop op)].
-
-
-      ++ (* VI_testop *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            invert_Forall2_app_r1 HForall2 vals' val0 Hvals' Hval0.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            decompose_vals_as_E_seq_E vals'.
-            exists S F. 
-            destruct (eval_testop op val0) as [ bval | ] eqn:Heval.
-            +++++ (* Ok *)
-              eexists;
-                eapply SC_E;
-                eapply SC_simple;
-                eapply SS_testop...
-            +++++ (* Err *)
-              inverts Hval0 as Heqtype_of.
-              destruct (eval_testop_no_runtime_err op val0 Heqtype_of Heval).
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Testop op)] [Plain (Testop op)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Testop op)].
-
-
-      ++ (* VI_relop *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            invert_Forall2_app_r2 HForall2 vals' val1 val2 Hvals' Hval1 Hval2.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            decompose_vals_as_E_seq_E vals'.
-            exists S F. 
-            destruct (eval_relop op val1 val2) as [ bval | ] eqn:Heval.
-            +++++ (* Ok *)
-              eexists;
-                eapply SC_E;
-                eapply SC_simple;
-                eapply SS_relop...
-            +++++ (* Err *)
-              inverts Hval1 as Heqtype_of1.
-              inverts Hval2 as Heqtype_of2.
-              destruct (eval_relop_no_runtime_err op val1 val2 Heqtype_of1 Heqtype_of2 Heval).
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Relop op)] [Plain (Relop op)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Relop op)].
-
-
-      ++ (* VI_drop *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            invert_Forall2_app_r1 HForall2 vals' val0 Hvals' Hval0.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            decompose_vals_as_E_seq_E vals'.
-            exists S F. eexists;
-                eapply SC_E;
-                eapply SC_simple;
-                eapply SS_drop...
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain Drop] [Plain Drop].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain Drop].
-
-
-      ++ (* VI_select *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            invert_Forall2_app_r3 HForall2 vals' val1 val2 valc Hvals' Hval1 Hval2 Hvalc.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            inverts Hvalc as Htypeof. 
-            destruct valc as [c | | | ] ; inverts Htypeof. (* inverts our the underlying [I32.t] *)
-            decompose_vals_as_E_seq_E vals'.
-            exists S F.  
-            destruct (I32.eqz c) eqn:Heqz;
-              eexists;
-              eapply SC_E;
-              eapply SC_simple.
-            +++++ eapply SS_select2...
-            +++++ eapply SS_select1...
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain Select] [Plain Select].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain Select].
-
-
-      ++ (* VI_nop *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            decompose_vals_as_E_seq_E vals0.
-            exists S F. eexists;
-              eapply SC_E;
-              eapply SC_simple;
-              eapply SS_nop.
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain Nop] [Plain Nop].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain Nop].
-
-
-      ++ (* VI_unreachable *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            decompose_vals_as_E_seq_E vals0.
-            exists S F. eexists;
-              eapply SC_E;
-              eapply SC_simple;
-              eapply SS_unreachable.
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain Unreachable] [Plain Unreachable].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain Unreachable].
-
-
-      ++ (* VI_block *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            decompose_vals_as_E_seq_E vals0.
-            exists S F. eexists;
-              eapply SC_E;
-              (* eapply SC_block *)
-              admit.
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Block bt instrs)] [Plain (Block bt instrs)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Block bt instrs)].
-
-
-      ++ (* VI_loop *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            decompose_vals_as_E_seq_E vals0.
-            exists S F. eexists;
-              eapply SC_E;
-              (* eapply SC_loop *)
-              admit.
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Loop bt instrs)] [Plain (Loop bt instrs)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Loop bt instrs)].
-
-
-      ++ (* VI_if *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            decompose_vals_as_E_seq_E vals0.
-            exists S F. eexists;
-              eapply SC_E;
-              (* eapply SC_if two cases *)
-              admit.
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (If bt instrs1 instrs2)] [Plain (If bt instrs1 instrs2)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (If bt instrs1 instrs2)].
-
-
-      ++ (* VI_br *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            (* We are not inside a label...how to step?
-               SS_br require a label to br.
-               This would be vacuously true. 
-             *)
-            admit.
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Br l0)] [Plain (Br l0)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Br l0)].
-
-
-      ++ (* VI_br_if *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            rewrite app_assoc in HForall2.
-            invert_Forall2_app_r1 HForall2 vals' val0 Hvals' Hval0.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            decompose_vals_as_E_seq_E vals'.
-            exists S F. 
-            inverts Hval0 as Htypeof.
-            destruct val0 as [ c | | | ]; inverts Htypeof.
-            destruct (I32.eqz c) eqn:Heqz;
-              eexists;
-              eapply SC_E;
-              eapply SC_simple.
-            +++++ (* I32.eqz c = true  *) eapply SS_br_if2...
-            +++++ (* I32.eqz c = false *) eapply SS_br_if1...
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Br_if l0)] [Plain (Br_if l0)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Br_if l0)].
-
-      ++ (* VI_br_table *)
-        edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-        +++ (* ⊢R *) 
-          inverts HRT as HVR.
-          inverts HVR as HForall2; simpl.
-          ++++ (* VR_vals *)
-            right.
-            rewrite app_assoc in HForall2. rewrite app_assoc in HForall2.
-            invert_Forall2_app_r1 HForall2 vals' val0 Hvals' Hval0.
-            rewrite upup_app; rewrite <- app_assoc; simpl.
-            decompose_vals_as_E_seq_E vals'.
-            exists S F. 
-            inverts Hval0 as Htypeof.
-            destruct val0 as [ i | | | ]; inverts Htypeof.
-            destruct (nth_error ls (I32.to_nat i)) as [l__i | ] eqn:Hnth;
-              eexists;
-              eapply SC_E;
-              eapply SC_simple.
-            +++++ (* in bound [SS_br_table__i] *) 
-              eapply SS_br_table__i...
-            +++++ (* out of bound [SS_br_table__N] *)
-              eapply SS_br_table__N.
-              apply nth_error_None...
-          ++++ (* VR_trap *)
-            step_VR_trap S F [Trap; Plain (Br_table ls l__N)] [Plain (Br_table ls l__N)].
-        +++ (* ↪ *)
-          step_snoc_app_cdr S' F' HSC [Plain (Br_table ls l__N)].
-
-    + (* VAI_trap *)
-      edestruct IHHVAIS as [HRT | HSC]; try solve [subst; eauto].
-      ++ (* ⊢R *) 
-        inverts HRT as HVR.
-        inverts HVR as HForall2; simpl. 
-        +++ (* VR_vals *)
-          destruct vals0 as [ | val0 vals0].
-          ++++ (* [Trap] is terminal *)
-            left. apply F_Trap_R.
-          ++++ right.
-            decompose_vals_as_E_seq_E (val0 :: vals0).
-            exists S F [Trap]. apply SC_trap__E.
-            subst E; simpl; discriminate.
-        +++ (* VR_trap *)
-            (* need to execute the first trap... though I doubt this case could happen? *)
-          step_VR_trap S F [Trap; Trap] [Trap].
-      ++ (* ↪ *)
-        step_snoc_app_cdr S' F' HSC [Trap].
-
-    + (* VAIS_label *)
-      introv HVAIS__cont HVAIS__rest.
-      inverts HVAIS__rest.
-      ++ (* [] *) skip.
-         (* TODO: need to generailize the context, i.e., the entire theorem *)
-
-Admitted.
-
-(** Archive - How I found it need to be a induction. *)
-
-(* For SC_Simple, we don't care S and F *)
-Lemma progress_SC_simple : forall S C F ainstrs ainstr__N ts0 ts2 ts3,
-      (S,C) ⊢a* ainstrs ∈ [] --> (ts0 ++ ts2) ->  (* [HVAIS] *)  
-      (S,C) ⊢a  ainstr__N ∈ ts2 --> ts3 ->          (* [HVAI__N] *)
-(* -------------------------------------------------------------- *)
-      ⊢R (F, ainstrs ++ [ainstr__N]) ∈ ts0 ++ ts3
-      \/ exists S' T', (S, F, ainstrs ++ [ainstr__N]) ↪ $(S', T').
-Proof with eauto.
-  introv HVAIS HVAI__N.
-  inverts HVAI__N as.
-  
-  - (* VAI_instr *)
-    intros HVI__N.
-    inverts keep HVI__N.
-
-    + (* VI_const *)
-      left.
-      (* we have shown [ainstrs ++ ⇈[val]] is a normal form
-         but how do we show it's a result of vals?
-         i.e. all ainstrs here should be some [vals] as well? *)
-      admit.
-
-    + (* VI_unop *)
-      right.
-      (*
-
-  HVAIS : (S, C) ⊢a* ainstrs ∈ [] --> (ts0 ++ [type_of op])
---------------------------------------------------------------
- [exists S' T', (S, F, ainstrs ++ [Plain (Unop op)]) ↪ $ (S', T')]
-
-The problem here is that,
-the substructure [ainstrs] could take a step...
-when it's not, it would be a result
-- either it's trap, then we trap
-- or it's a value, then we can possibly take a step
-
-meaning we need a induction hypothesis on HVAIS here.
-       *)
-Abort.
-
-
-
-  
+  - (* a break cannot escape the top level *)
+    erewrite valid_frame_labels in Hj; eauto.
+    destruct j; inverts Hj.
+Qed.
