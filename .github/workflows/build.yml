@@ -18,3 +18,6 @@ jobs:
               sudo chown -R coq:coq .
               make -C coq -j2
             endGroup
+            startGroup "Check assumptions"
+              ./coq/check-assumptions.sh
+            endGroup

@@ -16,3 +16,22 @@ The development builds with Coq 8.18:
 ```sh
 make -C coq
 ```
+
+Type soundness
+------------------------------------------------
+
+`coq/Soundness.v` proves type soundness of the formalized subset (numeric,
+parametric and structured control instructions): a valid configuration never
+gets stuck. Every configuration it reduces to is still valid, and is either a
+result (values or a trap) or can take a step.
+
+```coq
+Theorem soundness : forall S T S' T' rt,
+    ⊢c (S, T) ∈ rt ->
+    ($(S, T)) ↪* ($(S', T')) ->
+    ⊢c (S', T') ∈ rt /\
+    (⊢R T' ∈ rt \/ exists S'' F'' ainstrs'', $(S', T') ↪ (S'', F'', ainstrs'')).
+```
+
+Numeric operators are left abstract. `coq/check-assumptions.sh` checks that
+the theorem assumes nothing beyond those operators.
