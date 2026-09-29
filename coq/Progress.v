@@ -259,7 +259,7 @@ Ltac step_VR_trap S F list car :=
     list = [Trap] ++ car
   ); try reflexivity;
   rewrite decompose_rest_as_E_seq;
-  exists S F [Trap]; apply SC_trap__E.
+  exists S F [Trap]; apply SC_trap__E; simpl; discriminate.
 
 Ltac step_snoc_app_cdr S F HSC rest :=
   right;
@@ -638,15 +638,15 @@ Proof with eauto.
             exists S F. 
             inverts Hval0 as Htypeof.
             destruct val0 as [ i | | | ]; inverts Htypeof.
-            destruct (leb (length ls) (I32.to_nat i)) eqn:Hleb;
+            destruct (nth_error ls (I32.to_nat i)) as [l__i | ] eqn:Hnth;
               eexists;
               eapply SC_E;
               eapply SC_simple.
-            +++++ (* out of bound [SS_br_table__N] *)
-              (* Need to make two numbers consistent *)
-              admit.
             +++++ (* in bound [SS_br_table__i] *) 
-              admit.
+              eapply SS_br_table__i...
+            +++++ (* out of bound [SS_br_table__N] *)
+              eapply SS_br_table__N.
+              apply nth_error_None...
           ++++ (* VR_trap *)
             step_VR_trap S F [Trap; Plain (Br_table ls l__N)] [Plain (Br_table ls l__N)].
         +++ (* ↪ *)
@@ -658,9 +658,13 @@ Proof with eauto.
         inverts HRT as HVR.
         inverts HVR as HForall2; simpl. 
         +++ (* VR_vals *)
-          right.
-          decompose_vals_as_E_seq_E vals0.
-          exists S F [Trap]. apply SC_trap__E.
+          destruct vals0 as [ | val0 vals0].
+          ++++ (* [Trap] is terminal *)
+            left. apply F_Trap_R.
+          ++++ right.
+            decompose_vals_as_E_seq_E (val0 :: vals0).
+            exists S F [Trap]. apply SC_trap__E.
+            subst E; simpl; discriminate.
         +++ (* VR_trap *)
             (* need to execute the first trap... though I doubt this case could happen? *)
           step_VR_trap S F [Trap; Trap] [Trap].
