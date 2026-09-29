@@ -33,5 +33,6 @@ Theorem soundness : forall S T S' T' rt,
     (⊢R T' ∈ rt \/ exists S'' F'' ainstrs'', $(S', T') ↪ (S'', F'', ainstrs'')).
 ```
 
-Numeric operators are left abstract. `coq/check-assumptions.sh` checks that
-the theorem assumes nothing beyond those operators.
+Integer operators are defined on top of Coq's `ZArith`, following the spec's
+numerics. Float operators are still left abstract. `coq/check-assumptions.sh`
+checks that the theorem assumes nothing beyond those operators.
