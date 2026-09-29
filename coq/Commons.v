@@ -55,7 +55,7 @@ Module IndexingNotations.
 
   Open Scope wasm_scope.
 
-  Fixpoint update_idx {A: Type} (l: list A) (n: nat) (x: A) : option (list A) :=
+  Definition update_idx {A: Type} (l: list A) (n: nat) (x: A) : option (list A) :=
     match l.[n] with
     | None => None
     | Some _ => Some ((firstn n l) ++ [x] ++ (skipn (n+1) l))
