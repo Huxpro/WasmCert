@@ -111,23 +111,23 @@ Module IntOp (IXX : Int.S) (Val : ValType with Definition t := IXX.t).
       | Ne => IXX.ne
       | Lt sx =>
         match sx with
-        | U => IXX.lt_s
-        | S => IXX.lt_u
+        | U => IXX.lt_u
+        | S => IXX.lt_s
         end
       | Le sx =>
         match sx with
-        | U => IXX.le_s
-        | S => IXX.le_u
+        | U => IXX.le_u
+        | S => IXX.le_s
         end
       | Gt sx =>
         match sx with
-        | U => IXX.gt_s
-        | S => IXX.gt_u
+        | U => IXX.gt_u
+        | S => IXX.gt_s
         end
       | Ge sx =>
         match sx with
-        | U => IXX.ge_s
-        | S => IXX.ge_u
+        | U => IXX.ge_u
+        | S => IXX.ge_s
         end
       end
     in
@@ -348,7 +348,7 @@ End NumericsProgress.
 
 
 (* ================================================================= *)
-(** * Lemma for Progress *)
+(** * Lemma for Preservation *)
 
 Section NumericsPreservation.
 
@@ -456,55 +456,5 @@ Proof.
 Qed.
 
 
-
-(* ----------------------------------------------------------------- *)
-(** *** Archive *)
-
-(* These two conclusion is wrong...
-   During the [preservation] proof we only need to simpl [type_of b = T_i32] which is obvious.
-
-   Archived the structure for possible uses in variant form.
- *)
-Lemma eval_testop_preserve_type : forall op val1 (b: bool),
-    eval_testop op val1 = Ok b ->
-    type_of op = type_of (b: val).
-Proof.
-  intros.
-  unfold eval_testop in *.
-  destruct op; destruct val1; simpl in *; (* [type_of b = T_i32] *)
-    (* good cases *)
-    try reflexivity;
-
-    (* bad cases *)
-    try solve [inverts H; destruct t; simpl].
-
-  - (*
-        IOp64.testop S.IntOp.Eqz (i64 t0) = Ok b
-        ----------------------------------------
-                 T_i64 = T_i32
-     *)
-    destruct t.
-    destruct IOp64.testop.
-    + admit.
-    + inverts H.
-Admitted.
-
-Lemma eval_relop_preserve_type : forall op val1 val2 (b: bool),
-    eval_relop op val1 val2 = Ok b ->
-    type_of op = type_of (b: val).
-Proof.
-  intros.
-  unfold eval_relop in *.
-  destruct op; destruct val1; destruct val2; simpl in *; (* [type_of b = T_i32] *)
-    (* good cases *)
-    try reflexivity;
-
-    (* bad cases *)
-    try solve [inverts H; destruct t; simpl].
-
-    - admit. (* We need a way to re-interpret bool -> i32 -> i64? *)
-    - admit. (* We need a way to re-interpret bool -> i32 -> f32? *)
-    - admit. (* We need a way to re-interpret bool -> i32 -> f64? *)
-Admitted.
 
 End NumericsPreservation.

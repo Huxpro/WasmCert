@@ -258,7 +258,16 @@ Lemma upd_locals_inv: forall F F' n c,
   (F with_locals[n] = c) = Some F' ->
   F'.(A_locals).[n] = Some c.
 Proof.
-  Abort.
+  intros F F' n c H.
+  unfold upd_locals in H.
+  destruct (update_idx (A_locals F) n c) as [vs | ] eqn:Hupd; inversion H; subst; clear H.
+  simpl. unfold update_idx in Hupd.
+  destruct (A_locals F .[n]) eqn:Hn; inversion Hupd; subst; clear Hupd; simpl.
+  assert (Hlen : n < length (A_locals F)).
+  { apply nth_error_Some. rewrite Hn. discriminate. }
+  rewrite nth_error_app2; rewrite firstn_length_le; try lia.
+  rewrite Nat.sub_diag. reflexivity.
+Qed.
 
 
 (* test *)
@@ -618,28 +627,6 @@ Proof with eauto.
     exists (E_seq vals (E_label n cont E) ainstrs0).
     simpl. rewrite <- HE...
 Qed.
-
-
-(* Hmm... this seems not true for [E_seq] cases
-   If we need to use it eventually we will specialize it.
- *)
-Lemma E_co_B: forall E ainstrs,
-    exists k (B: block_context k), plug__E E ainstrs = plug__B B ainstrs. 
-Proof with eauto.
-  introv.
-  induction E; simpl. 
-  - (* E_hole *)
-    exists 0 (B_nil [] []). simpl. rewrite app_nil_r...
-  - (* E_seq *)
-    destruct IHE as (k & B & HB).
-    admit.
-  - (* E_label *)
-    destruct IHE as (k & B & HB).
-    exists (k+1) (B_cons [] n cont B []). 
-    simpl. rewrite <- HB...
-Abort.
-
-
 
 
 (**************************************************************)
@@ -1098,24 +1085,6 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
 
 where "SFI1 '↪' SFI2" := (step SFI1 SFI2).
 Hint Constructors step.
-
-Module ConfigStepTest.
-
-  Example e : forall (S S': store) (T T': thread),
-    config_to_tuple (S, T) ↪ config_to_tuple (S', T').
-  Abort. 
-
-  Example e2 : forall (S S': store) (T T': thread),
-    ($(S, T)) ↪ ($(S', T')).
-  Abort. 
-
-  Example e3 : forall (S S': store) (T T': thread),
-    $(S, T) ↪ $(S', T') ->
-    $(S, T) ↪ $(S', T').
-  Abort. 
-
-End ConfigStepTest.
-
 
 (* ================================================================= *)
 (** ** Stepping Demo *)
