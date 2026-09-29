@@ -1015,3 +1015,64 @@ Proof with auto.
   - apply vais_weakening in Hvals2. apply vais_ts_app_nil_l...
 Qed.
   
+
+
+(* ----------------------------------------------------------------- *)
+(** *** Empty and Singleton Sequences *)
+
+Lemma vais_nil_inv : forall S C ts1 ts2,
+    (S, C) ⊢a* [] ∈ ts1 --> ts2 ->
+    ts1 = ts2.
+Proof.
+  introv HVAIS.
+  inverts HVAIS as; auto.
+  introv _ _ Heq. apply app_eq_nil in Heq as [_ Hcontra].
+  inverts Hcontra.
+Qed.
+
+(* A single instruction is typed up to an unused prefix of the stack. *)
+Lemma vais_singleton_inv : forall S C ainstr ts1 ts2,
+    (S, C) ⊢a* [ainstr] ∈ ts1 --> ts2 ->
+    exists ts0 ts ts',
+      ts1 = ts0 ++ ts /\ ts2 = ts0 ++ ts' /\ (S, C) ⊢a ainstr ∈ ts --> ts'.
+Proof.
+  introv HVAIS.
+  inverts HVAIS as HVAIS HVAI Heq.
+  apply snoc_app_eq_unit in Heq as [-> ->].
+  apply vais_nil_inv in HVAIS. subst.
+  do 3 eexists. split; [reflexivity | split; [reflexivity | eassumption]].
+Qed.
+
+Lemma vais_singleton : forall S C ainstr ts0 ts ts',
+    (S, C) ⊢a ainstr ∈ ts --> ts' ->
+    (S, C) ⊢a* [ainstr] ∈ (ts0 ++ ts) --> (ts0 ++ ts').
+Proof.
+  introv HVAI.
+  rewrite <- (app_nil_l [ainstr]).
+  eapply VAIS_snoc; eauto.
+Qed.
+
+(* [Trap] can be given any type. *)
+Lemma vais_trap : forall S C ts1 ts2,
+    (S, C) ⊢a* [Trap] ∈ ts1 --> ts2.
+Proof.
+  intros.
+  rewrite <- (app_nil_l ts1), <- (app_nil_l ts2).
+  apply vais_singleton. constructor.
+Qed.
+
+
+(* ================================================================= *)
+(** ** Lists of Values *)
+
+(* A list of lifted values splits into lists of lifted values. *)
+Lemma upup_eq_app : forall vals ainstrs1 ainstrs2,
+    ⇈vals = ainstrs1 ++ ainstrs2 ->
+    exists vals1 vals2,
+      vals = vals1 ++ vals2 /\ ainstrs1 = ⇈vals1 /\ ainstrs2 = ⇈vals2.
+Proof.
+  introv Heq.
+  apply map_eq_app in Heq as (instrs1 & instrs2 & Heq & <- & <-).
+  apply map_eq_app in Heq as (vals1 & vals2 & -> & <- & <-).
+  eauto.
+Qed.
