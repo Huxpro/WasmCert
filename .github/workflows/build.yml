@@ -1,0 +1,20 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  coq:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: coq-community/docker-coq-action@v1
+        with:
+          coq_version: '8.18'
+          custom_script: |
+            startGroup "Build"
+              sudo chown -R coq:coq .
+              make -C coq -j2
+            endGroup

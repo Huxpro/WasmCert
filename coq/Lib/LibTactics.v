@@ -1526,7 +1526,7 @@ Ltac equates_several E cont :=
   let rec go pos :=
      match pos with
      | nil => cont tt
-     | (boxer ?n)::?pos' => equates_one n; [ instantiate; go pos' | ]
+     | (boxer ?n)::?pos' => equates_one n; [ go pos' | ]
      end in
   go all_pos.
 
@@ -1591,7 +1591,7 @@ Tactic Notation "tryfalse" :=
 
 Ltac false_then E cont :=
   false_goal; first
-  [ applys E; instantiate
+  [ applys E
   | forwards_then E ltac:(fun M =>
       pose M; jauto_set_hyps; intros; false) ];
   cont tt.
@@ -3137,14 +3137,14 @@ Tactic Notation "induction_wf" ":" constr(E) ident(X) :=
     (see LibTacticsDemos for an example) *)
 
 From Coq Require Import Arith.Compare_dec.
-From Coq Require Import omega.Omega.
+From Coq Require Import micromega.Lia.
 
 Lemma induct_height_max2 : forall n1 n2 : nat,
   exists n, n1 < n /\ n2 < n.
 Proof using.
   intros. destruct (lt_dec n1 n2).
-  exists (S n2). omega.
-  exists (S n1). omega.
+  exists (S n2). lia.
+  exists (S n1). lia.
 Qed.
 
 Ltac induct_height_step x :=

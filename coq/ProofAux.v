@@ -31,7 +31,7 @@ Qed.
 Lemma plus_0_n_rev : forall x y,
     x + y = y -> x = 0.
 Proof. 
-  intros. omega.
+  intros. lia.
 Qed.
 
 Lemma cons_to_app: forall {X: Type} (x: X) (xs: list X),

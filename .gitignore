@@ -7,3 +7,9 @@ archive
 doc
 test
 
+Makefile.coq
+Makefile.coq.conf
+.Makefile.coq.d
+*.vok
+*.vos
+.lia.cache
