@@ -512,8 +512,8 @@ Lemma Clabels_cons : forall C ts1 ts2 n,
 Proof with auto.
   introv Hn; simpl in *.
   rewrite cons_to_app.
-  rewrite nth_error_app2; simpl; try omega.
-  asserts_rewrite (n + 1 - 1 = n); try omega...
+  rewrite nth_error_app2; simpl; try lia.
+  asserts_rewrite (n + 1 - 1 = n); try lia...
 Qed. 
 
 Lemma Clabels_cons_sub : forall C ts1 ts2 n,
@@ -523,7 +523,7 @@ Lemma Clabels_cons_sub : forall C ts1 ts2 n,
 Proof with auto.
   introv Hgt H.
   apply Clabels_cons with (ts1 := ts1) (n := n - 1) in H.
-  asserts_rewrite (n - 1 + 1 = n) in H; try omega...
+  asserts_rewrite (n - 1 + 1 = n) in H; try lia...
 Qed.
 
 
@@ -649,8 +649,8 @@ Which naturally ask for a lemma:
 *)
 
     rewrite Nat.sub_add_distr in HClabels. 
-    apply Clabels_cons_sub with (ts1 := ts1) in HClabels as HClabels'; try omega.
-    assert (Hgt': l' >= l); try omega.
+    apply Clabels_cons_sub with (ts1 := ts1) in HClabels as HClabels'; try lia.
+    assert (Hgt': l' >= l); try lia.
     specialize (IHBl Hgt' (C,labels ts1) ts5 ts4 HClabels' vals0 HVAIS' Heqlen) as Hvals.
     eapply vais_vals_SC_weakening in Hvals...
 Qed.    
@@ -1550,6 +1550,14 @@ key point: E might be label and cons label, [plug__E] uncons the labels.
     specialize (plug_E_inner _ _ _ _ _ _ HVAIS) as (ts3 & ts4 & C' & Hinner & HEC).
     edestruct IHHSC with (S := S0) (C := C') as (HES & HVS' & HVA' & HVAIS') ...
 
+    admit.
+    splits...
+    (* only valid_admin_instrs remain, but with different store (up to weakening),
+       we need state some a store weakening version of [plug_E_same]
+     *)
+
+Abort.
+
 (* labels have no effect on valid frame and valid moduleinst?? *)
 Lemma VMI_weakening_ES : forall S C C' mi,
       ⊢C C ⪯ C' ->
@@ -1567,14 +1575,6 @@ Lemma VF_weakening_ES : forall S F C C' ,
     S ⊢A F ∈ C ->
     S ⊢A F ∈ C'.
 Proof with eauto.
-Abort.
-
-    admit.
-    splits...
-    (* only valid_admin_instrs remain, but with different store (up to weakening),
-       we need state some a store weakening version of [plug_E_same]
-     *)
-
 Abort.
 
 

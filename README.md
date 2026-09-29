@@ -7,3 +7,12 @@ For more background information, see the project report literature [Xuan Huang. 
 
 The report literature is also indexed in [Google Scholar](https://scholar.google.com/scholar?cites=13173623897259187056&as_sdt=2005&sciodt=0,5&hl=en) and [Semantic Scholar](https://www.semanticscholar.org/paper/A-Mechanized-Formalization-of-the-WebAssembly-in-Huang/2fde569f52c37fe8e45ebf05268e1b4341b58cbf#citing-papers) thanks to citations.
 
+
+Building
+------------------------------------------------
+
+The development builds with Coq 8.18:
+
+```sh
+make -C coq
+```
