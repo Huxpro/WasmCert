@@ -274,8 +274,8 @@ Qed.
 
 Module FrameTests.
 
-  Parameter c : val.
-  Parameter c' : val.
+  Definition c : val := i32 I32.zero.
+  Definition c' : val := i32 I32.one.
 
   Example F0 := empty_frame.
 
@@ -360,7 +360,7 @@ Module AdminInstrCoercisonTest.
      see [https://github.com/coq/coq/issues/10898]
    *)
 
-  Parameter c : val.
+  Definition c : val := i32 I32.zero.
 
   (* Unit tests on coerce one [instr] or [val] *)
   Example ai__one : admin_instr := Nop.
@@ -452,7 +452,7 @@ Notation plug__B := plug_block_context.
 
 Module BlockContextTest.
 
-  Parameter c : val.
+  Definition c : val := i32 I32.zero.
 
   Example vals := [c; c].
   Example instrs := ↑[Nop].
@@ -589,7 +589,7 @@ Notation plug__E := plug_eval_context.
 
 Module EvalContextTest.
 
-  Parameter c : val.
+  Definition c : val := i32 I32.zero.
 
   Example vals := [c; c].
   Example instrs := ↑[Nop].
@@ -1120,7 +1120,7 @@ Proof.
 Qed.
 
 (* ----------------------------------------------------------------- *)
-(** *** Axiom and Lemma *)
+(** *** Lemmas *)
 
 Module StepExample.
 
@@ -1128,27 +1128,21 @@ Module StepExample.
   Notation one := I32.one.
   Notation add := IntOp.Add.
 
-  Axiom add_zzz:
+  Lemma add_zzz:
     I32.add zro zro = Some zro.
+  Proof. reflexivity. Qed.
 
-  Axiom add_ozo:
+  Lemma add_ozo:
     I32.add one zro = Some one.
-
-  Hint Unfold IOp32.binop.
-  Hint Unfold IOp32.to_val.
-  Hint Unfold IVal32.to_val.
+  Proof. reflexivity. Qed.
 
   Lemma eval_add_zzz :
       eval_binop (i32 add) (i32 zro) (i32 zro) = Ok (Some (i32 zro)).
-  Proof with (simpl;auto).
-    simpl; unfold IOp32.binop... rewrite -> add_zzz...
-  Qed.
+  Proof. reflexivity. Qed.
 
   Lemma eval_add_ozo :
       eval_binop (i32 add) (i32 one) (i32 zro) = Ok (Some (i32 one)).
-  Proof with (simpl;auto).
-    simpl; unfold IOp32.binop... rewrite -> add_ozo...
-  Qed.
+  Proof. reflexivity. Qed.
 
 
 (* ----------------------------------------------------------------- *)

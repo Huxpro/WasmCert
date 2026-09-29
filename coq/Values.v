@@ -28,12 +28,13 @@ End ValRepTest.
 (* ----------------------------------------------------------------- *)
 (** *** Bytes *)
 
-Parameter byte : Type.
+Definition byte : Type := Coq.Init.Byte.byte.
 
 (* ----------------------------------------------------------------- *)
 (** *** Names *)
 
-Parameter char : Type.
+(* A Unicode scalar value. *)
+Definition char : Type := BinNums.N.
 
 Definition name := list char.
 
@@ -136,7 +137,7 @@ Coercion nat_to_i32 : nat >-> I32.t.
 
 Module ValTest.
 
-  Parameter c32 : I32.t.
+  Definition c32 : I32.t := I32.one.
   Definition c64 := I64.zero.
 
   Example v1: val := i32 c32.
