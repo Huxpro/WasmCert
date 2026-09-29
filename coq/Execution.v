@@ -831,13 +831,15 @@ Inductive step_simple : list admin_instr -> list admin_instr -> Prop :=
       I32.eqz c = true ->
       ↑[Const (i32 c); Br_if l]  ↪s []
 
-  | SS_br_table__i : forall ls l__N l__i (i: nat),
-      ls.[i] = Some l__i ->
-      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__i]
+  (* The operand is interpreted as an unsigned index via [I32.to_nat],
+     so that every [i32] operand selects exactly one of the two rules. *)
+  | SS_br_table__i : forall ls l__N l__i c,
+      ls.[I32.to_nat c] = Some l__i ->
+      ↑[Const (i32 c); Br_table ls l__N]  ↪s  ↑[Br l__i]
 
-  | SS_br_table__N : forall ls l__N (i: nat),
-      length ls <= i ->
-      ↑[Const (i32 (i : I32.t)); Br_table ls l__N]  ↪s  ↑[Br l__N]
+  | SS_br_table__N : forall ls l__N c,
+      length ls <= I32.to_nat c ->
+      ↑[Const (i32 c); Br_table ls l__N]  ↪s  ↑[Br l__N]
 
 (* ----------------------------------------------------------------- *)
 (** *** Control Instruction - Function Call Related *)
@@ -947,13 +949,13 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
   (* The original paper definition (and Isabelle) simply desugar [if] into [block]
      But here we faithfully represent the spec and made the rule explicit. *)
 
+  (* As for [Br_if] and [Select], the condition is tested with [I32.eqz]
+     so that exactly one of the two rules applies to any [i32] operand. *)
   | SC_if__nez : forall S F m n ts1 ts2 bt instrs1 instrs2 c vals,
       m = length ts1 ->
       n = length ts2 ->
       length vals = m ->
-      c <> I32.zero ->
-      (* c <> I32.zero -> *)
-      (* I32.eqz c = false -> *)
+      I32.eqz c = false ->
       expand F bt = Some (ts1 --> ts2) ->
       (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs1)])
 
@@ -961,7 +963,7 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
       m = length ts1 ->
       n = length ts2 ->
       length vals = m ->
-      c = I32.zero ->
+      I32.eqz c = true ->
       expand F bt = Some (ts1 --> ts2) ->
       (S, F, ⇈vals ++ ↑[Const (i32 c); If bt instrs1 instrs2]) ↪ (S, F, [Label n ϵ (⇈vals ++ ↑instrs2)])
 
@@ -1066,7 +1068,10 @@ Inductive step: S_F_instrs -> S_F_instrs -> Prop :=
 
 (** **** Trap *)
 
+  (* The spec requires [E <> [_]]. We rule out every context that plugs
+     to [[Trap]] itself, otherwise a trapped configuration steps to itself. *)
   | SC_trap__E : forall E S F,
+      plug__E E [Trap] <> [Trap] ->
       (S, F, plug__E E [Trap]) ↪ (S, F, [Trap])
 
   (* | SC_trap__frame : forall S F n F',  *)

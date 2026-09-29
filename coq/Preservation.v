@@ -480,7 +480,6 @@ Proof with eauto.
       try invert_eq_snoc_app H0;
       try invert_eq_snoc_app H;
 
-        remember (nat_to_i32 i) as c;
         apply vais_vals with (vals := [(i32 c)]) in HVAIS; simpl in HVAIS;
         rewrite app_assoc in HVAIS; rewrite app_assoc in HVAIS;
           destruct (app_eq_same_len ((ts0 ++ ts4) ++ ts) ts1 [T_i32] [T_i32]);
@@ -1273,7 +1272,7 @@ Proof with eauto.
   - (* SC_if2 *) 
     splits...
     + (*  ⊢S S' ⪯ S' *) apply (extend_store_refl _ HVS).
-    + (*  ⊢a*  *) eapply preservation_SC_if__eqz with (c := I32.zero) (instrs1 := instrs1)... 
+    + (*  ⊢a*  *) eapply preservation_SC_if__eqz with (c := c) (instrs1 := instrs1)... 
 
   - (* SC_E *) admit.
 Admitted.
