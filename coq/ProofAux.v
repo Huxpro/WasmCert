@@ -37,14 +37,23 @@ Qed.
 Lemma cons_to_app: forall {X: Type} (x: X) (xs: list X),
     x :: xs = [x] ++ xs.
 Proof.
-  Admitted.
+  reflexivity.
+Qed.
 
 Lemma app_eq_same_len : forall {X: Type} (xs xs' xs1 xs2: list X), 
     length xs1 = length xs2 ->
     xs ++ xs1 = xs' ++ xs2 ->
     xs = xs' /\ xs1 = xs2.
 Proof with auto.
-Admitted.
+  introv Hlen Heq.
+  assert (Hlen' : length xs = length xs').
+  { apply (f_equal (@length X)) in Heq.
+    rewrite !app_length in Heq. lia. }
+  gen xs'. induction xs as [ | x xs IH]; intros; destruct xs' as [ | x' xs'];
+    simpl in *; try discriminate...
+  inverts Heq as Heq.
+  destruct (IH xs') as [Hxs Hxs1]; subst...
+Qed.
 
 
 
@@ -281,30 +290,40 @@ Lemma unsnoc_neq: forall {A : Type} (l1 l2 : list A),
   unsnoc l1 <> unsnoc l2 ->
   l1 <> l2.
 Proof. 
-  Admitted.
+  introv Hneq Heq. apply Hneq. subst. reflexivity.
+Qed.
 
 Lemma unsnoc_car_neq: forall {A : Type} (l1 l2 : list A), 
   unsnoc_car l1 <> unsnoc_car l2 ->
   l1 <> l2.
 Proof. 
-  Admitted.
+  introv Hneq Heq. apply Hneq. subst. reflexivity.
+Qed.
 
 Lemma unsnoc_snoc_app_some : forall {X: Type} (l: list X) x,
     unsnoc (l ++ [x]) = Some (l, x).
 Proof. 
-  Admitted.
+  intros X l x.
+  induction l as [ | y l IH].
+  - reflexivity.
+  - simpl. rewrite IH.
+    destruct l; reflexivity.
+Qed.
 
 Lemma unsnoc_some_eq_snoc_app: forall {X: Type} {xs xs' : list X} {x: X},
   unsnoc xs = Some (xs', x) ->
   xs = xs' ++ [x].
 Proof with auto.
-  destruct xs;
-    introv Heq.
-  - simpl in Heq. inverts Heq.
-  - gen x xs'. induction xs; intros.
-    + simpl in Heq. inverts Heq. apply app_nil_l.
-    + admit.
-Admitted.
+  intros X xs.
+  induction xs as [ | y xs IH]; introv Heq.
+  - inverts Heq.
+  - destruct xs as [ | z xs].
+    + inverts Heq...
+    + remember (z :: xs) as zs.
+      simpl in Heq. rewrite Heqzs in Heq. rewrite <- Heqzs in Heq.
+      destruct (unsnoc zs) as [[cdr car] | ] eqn:Hunsnoc; inverts Heq.
+      rewrite (IH cdr x)...
+Qed.
 
 (* combine *)
 Lemma exists_snoc_app: forall {X: Type} (xs : list X), 
@@ -330,23 +349,34 @@ Qed.
 Lemma unsnoc_car_snoc_app_some : forall {X: Type} (l: list X) x,
     unsnoc_car (l ++ [x]) = Some x.
 Proof. 
-  Admitted.
+  intros X l x.
+  induction l as [ | y l IH].
+  - reflexivity.
+  - simpl. rewrite IH.
+    destruct l; reflexivity.
+Qed.
 
 Lemma unsnoc_car_snoc_app2_some : forall {X: Type} (l: list X) x1 x2,
     unsnoc_car (l ++ [x1; x2]) = Some x2.
 Proof. 
-  Admitted.
+  intros.
+  replace (l ++ [x1; x2]) with ((l ++ [x1]) ++ [x2])
+    by (rewrite <- app_assoc; reflexivity).
+  apply unsnoc_car_snoc_app_some.
+Qed.
 
 
 Lemma unsnoc_snoc_some : forall {X: Type} (l: list X) x,
     unsnoc (snoc l x) = Some (l, x).
 Proof. 
-  Admitted.
+  intros. rewrite snoc_eq_snoc_app. apply unsnoc_snoc_app_some.
+Qed.
 
 Lemma unsnoc_car_snoc_some : forall {X: Type} (l: list X) x,
     unsnoc_car (snoc l x) = Some x.
 Proof. 
-  Admitted.
+  intros. rewrite snoc_eq_snoc_app. apply unsnoc_car_snoc_app_some.
+Qed.
 
 
 (* ================================================================= *)
@@ -645,20 +675,27 @@ Qed.
 (* ----------------------------------------------------------------- *)
 (** *** Weakening *)
 
-(* Can be proved by using the properties
-   where the [VAIS_nil] case can choose its polymorphic type underterminstically. 
-*)
-Lemma vais_weakening : forall S C ainstrs ts0 ts1,
-    (S, C) ⊢a* ainstrs ∈ ts0 --> (ts0 ++ ts1) <->
-    (S, C) ⊢a* ainstrs ∈ [] --> ([] ++ ts1).
-Proof with auto.
-Admitted.
+(* Any typing can be weakened by an unused prefix of the stack.
 
+   N.B. the converse (strengthening) does NOT hold in general, e.g.
+   [[Drop; Const val]] has type [[t] --> [t]] when [type_of val = t]
+   but not [[] --> []]. See [vais_weakening] for the special case of
+   values, where it does hold.
+ *)
 Lemma vais_weakening_app : forall S C ainstrs ts0 ts1 ts2,
-    (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2) <->
-    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2.
+    (S, C) ⊢a* ainstrs ∈ ts1 --> ts2 ->
+    (S, C) ⊢a* ainstrs ∈ (ts0 ++ ts1) --> (ts0 ++ ts2).
 Proof with auto.
-Admitted.
+  introv HVAIS.
+  remember (S, C) as SC.
+  remember (ts1 --> ts2) as ft.
+  gen ts1 ts2.
+  induction HVAIS; intros; inverts Heqft; inverts HeqSC.
+  - constructor.
+  - rewrite app_assoc.
+    eapply VAIS_snoc with (ts := ts)...
+    rewrite <- app_assoc...
+Qed.
 
 (* ----------------------------------------------------------------- *)
 (** *** Lifting *)
@@ -667,7 +704,16 @@ Lemma vis_to_vais : forall S C instrs ts0 ts1,
         C  ⊢*   instrs ∈ ts0 --> ts1 ->
     (S, C) ⊢a* ↑instrs ∈ ts0 --> ts1.
 Proof with auto.
-Admitted.
+  introv HVIS.
+  remember (ts0 --> ts1) as ft.
+  gen ts0 ts1.
+  induction HVIS; intros; inverts Heqft.
+  - constructor.
+  - rewrite map_app. simpl.
+    eapply VAIS_snoc with (ts := ts).
+    + eapply IHHVIS. reflexivity.
+    + constructor. assumption.
+Qed.
 
 
 (* ----------------------------------------------------------------- *)
@@ -717,7 +763,15 @@ Proof with eauto.
       inverts Heqapp. 
       edestruct IHHVAISapp as (ts4' & HV1 & HV2)...
   --- (* <- *)
-Admitted.    
+  introv (ts2 & HVAIS0 & HVAIS1).
+  remember (S, C) as SC.
+  remember (ts2 --> ts3) as ft.
+  gen ts2 ts3.
+  induction HVAIS1; intros; inverts Heqft; inverts HeqSC.
+  - rewrite app_nil_r...
+  - rewrite app_assoc.
+    eapply VAIS_snoc...
+Qed.
 
 
 (*
@@ -783,6 +837,20 @@ Qed.
 (* ----------------------------------------------------------------- *)
 (** *** Vals *)
 
+(* Values can always be pushed on top of any stack. *)
+Lemma vais_vals_intro: forall S C vals ts,
+    (S,C) ⊢a* ⇈vals ∈ ts --> (ts ++ map type_of vals).
+Proof with auto.
+  intros.
+  induction vals as [ | val vals IH] using rev_ind.
+  - rewrite app_nil_r. constructor.
+  - rewrite !map_app. simpl.
+    rewrite app_assoc.
+    eapply VAIS_snoc with (ts := []).
+    + rewrite app_nil_r...
+    + constructor. constructor...
+Qed.
+
 Lemma vais_vals: forall S C vals ts1 ts2, 
     (S,C) ⊢a* ⇈vals ∈ ts1 --> ts2 ->
     ts2 = ts1 ++ map type_of vals.
@@ -821,6 +889,20 @@ Proof with auto.
       split...
       ++ eapply (IHHVAIS S C vals' ts1 ts0)...
          rewrite app_nil_r...
+Qed.
+
+
+(* Values can be typed on top of any stack. Unlike arbitrary instructions,
+   this holds in both directions. *)
+Lemma vais_weakening : forall S C vals ts0 ts1,
+    (S, C) ⊢a* ⇈vals ∈ ts0 --> (ts0 ++ ts1) <->
+    (S, C) ⊢a* ⇈vals ∈ [] --> ([] ++ ts1).
+Proof with auto.
+  split; introv HVAIS; apply vais_vals in HVAIS.
+  - apply app_inv_head in HVAIS. subst.
+    apply vais_vals_intro.
+  - simpl in HVAIS. subst.
+    apply vais_vals_intro.
 Qed.
 
 

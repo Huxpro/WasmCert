@@ -1126,14 +1126,24 @@ Inductive multi {X : Type} (R : relation X) : relation X :=
 
 Notation " t '↪*' t' " := (multi step t t') (at level 40).
 
-Axiom multi_R : forall (X : Type) (R : relation X) (x y : X),
+Lemma multi_R : forall (X : Type) (R : relation X) (x y : X),
     R x y -> (multi R) x y.
+Proof.
+  intros X R x y H.
+  apply multi_step with y; [assumption | apply multi_refl].
+Qed.
 
-Axiom multi_trans :
+Lemma multi_trans :
   forall (X : Type) (R : relation X) (x y z : X),
       multi R x y  ->
       multi R y z ->
       multi R x z.
+Proof.
+  intros X R x y z Hxy Hyz.
+  induction Hxy as [ | x x' y Hstep Hmulti IH].
+  - assumption.
+  - apply multi_step with x'; [assumption | apply IH; assumption].
+Qed.
 
 (* ----------------------------------------------------------------- *)
 (** *** Axiom and Lemma *)
