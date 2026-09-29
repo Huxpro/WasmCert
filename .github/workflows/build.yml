@@ -14,6 +14,9 @@ jobs:
         with:
           coq_version: '8.18'
           custom_script: |
+            startGroup "Install dependencies"
+              opam install -y coq-flocq
+            endGroup
             startGroup "Build"
               sudo chown -R coq:coq .
               make -C coq -j2
