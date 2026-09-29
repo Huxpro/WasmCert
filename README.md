@@ -11,9 +11,11 @@ The report literature is also indexed in [Google Scholar](https://scholar.google
 Building
 ------------------------------------------------
 
-The development builds with Coq 8.18:
+The development builds with Coq 8.18 and uses [Flocq](https://flocq.gitlabpages.inria.fr/)
+(4.1) for IEEE 754 floats:
 
 ```sh
+opam install coq-flocq     # or: apt install libcoq-flocq
 make -C coq
 ```
 
@@ -33,6 +35,14 @@ Theorem soundness : forall S T S' T' rt,
     (⊢R T' ∈ rt \/ exists S'' F'' ainstrs'', $(S', T') ↪ (S'', F'', ainstrs'')).
 ```
 
-Integer operators are defined on top of Coq's `ZArith`, following the spec's
-numerics. Float operators are still left abstract. `coq/check-assumptions.sh`
-checks that the theorem assumes nothing beyond those operators.
+The numerics follow the spec: integers are defined on top of Coq's `ZArith`,
+and floats on top of Flocq's IEEE 754 binary32/binary64. The development makes
+no assumptions of its own. `coq/check-assumptions.sh` (run in CI) checks that
+no proof is left unfinished and that the main theorems depend on no axiom
+besides the classical real number axioms of Coq's standard library, which
+Flocq relies on:
+
+- `ClassicalDedekindReals.sig_forall_dec`
+- `ClassicalDedekindReals.sig_not_dec`
+- `Classical_Prop.classic`
+- `FunctionalExtensionality.functional_extensionality_dep`
