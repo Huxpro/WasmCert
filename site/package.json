@@ -1,0 +1,30 @@
+{
+  "name": "wasmcert-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Visual map of the WasmCert soundness proof: progress, strategy and proof edges.",
+  "scripts": {
+    "extract": "node scripts/extract-coq.mjs",
+    "predev": "npm run extract",
+    "dev": "vite",
+    "prebuild": "npm run extract",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "node --test scripts/*.test.mjs",
+    "check-refs": "node scripts/check-refs.mjs"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

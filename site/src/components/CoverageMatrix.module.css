@@ -1,0 +1,177 @@
+.wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+}
+.table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  font-size: var(--step--1);
+}
+.table thead th {
+  position: sticky;
+  top: 0;
+  padding: 12px 10px 10px;
+  font: 500 0.75rem/1.2 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: center;
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--sheet);
+}
+.table thead th.first {
+  text-align: left;
+}
+.first {
+  width: 32%;
+  text-align: left;
+  padding-left: 14px !important;
+}
+/* A heavier rule separates "defined" columns from "proved" columns. */
+.proofCol {
+  border-left: 1px solid var(--rule-strong);
+}
+.group th {
+  padding: 16px 14px 6px;
+  text-align: left;
+  font: 600 var(--step-0) / 1.2 var(--font-display);
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+}
+.groupNote {
+  margin-left: 10px;
+  font: 400 var(--step--1) var(--font-body);
+  color: var(--ink-3);
+}
+.row td,
+.row th {
+  padding: 0 10px;
+  height: 36px;
+  text-align: center;
+  border-bottom: 1px solid var(--rule);
+}
+.row:hover,
+.row[data-open] {
+  background: var(--paper);
+}
+.row th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.row th button:hover code {
+  color: var(--accent);
+}
+.chev {
+  display: inline-block;
+  width: 10px;
+  color: var(--ink-3);
+  transition: transform 0.15s;
+}
+.row[data-open] .chev {
+  transform: rotate(90deg);
+}
+
+.model {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.model[data-s='modeled'] {
+  background: var(--ink-2);
+}
+.model[data-s='partial'] {
+  background: linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  outline: 1.5px solid var(--ink-2);
+  outline-offset: -1.5px;
+}
+.model[data-s='absent'] {
+  border: 1.5px dashed var(--missing);
+}
+.model[data-s='value'] {
+  width: 12px;
+  height: 2px;
+  background: var(--ink-3);
+}
+
+.detailRow td {
+  padding: 0;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 18px 32px;
+  text-align: left;
+}
+.detailHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+}
+.detailHead p {
+  font-size: var(--step-0);
+  max-width: var(--measure);
+}
+.detailRefs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 24px;
+  margin: 0;
+}
+.detailGrid dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.detailGrid dd {
+  margin: 0;
+}
+.ctors,
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ctors a {
+  color: var(--ink);
+}
+.absent {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--rule-strong);
+}
+.muted {
+  color: var(--ink-3);
+}
+.edgeLink {
+  align-self: flex-start;
+  font-weight: 500;
+}

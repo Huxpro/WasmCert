@@ -1,0 +1,65 @@
+.ledger {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ledger figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.total {
+  color: var(--ink-2);
+}
+.total b,
+.keys b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.bar {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+}
+.bar span {
+  flex-basis: 0;
+  min-width: 3px;
+  border-radius: 2px;
+}
+[data-k='closed'] {
+  background: var(--ok);
+}
+[data-k='modulo'] {
+  background: repeating-linear-gradient(135deg, var(--ok) 0 3px, var(--ok-soft) 3px 6px);
+}
+[data-k='partial'] {
+  background: var(--open);
+}
+[data-k='stated'] {
+  background: repeating-linear-gradient(135deg, var(--open) 0 2px, var(--open-soft) 2px 6px);
+}
+[data-k='aborted'] {
+  background: var(--rule-strong);
+}
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--step--1);
+  color: var(--ink-2);
+}
+.keys li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}

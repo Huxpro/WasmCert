@@ -1,0 +1,4 @@
+node_modules
+dist
+# regenerated from ../coq on every dev/build
+src/generated/
