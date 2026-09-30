@@ -1,0 +1,84 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+.panel > * {
+  max-width: 100%;
+}
+.route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--step--1);
+  color: var(--ink-3);
+}
+.route a {
+  color: var(--ink-2);
+}
+.panel h2 {
+  font-size: var(--step-2);
+}
+.gist {
+  font: 500 var(--step-1) / 1.45 var(--font-display);
+  color: var(--ink);
+  max-width: var(--measure);
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: var(--measure);
+  color: var(--ink-2);
+}
+.body code {
+  color: var(--ink);
+}
+.panel section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.panel section h3 {
+  font-family: var(--font-body);
+}
+.points,
+.edges {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.edges a {
+  font-size: var(--step--1);
+}
+.blockers {
+  margin: 2px 0 0 18px;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.how {
+  margin-left: 18px;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+.def {
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--step--1);
+}
+.def span {
+  color: var(--ink-3);
+}
+.def:hover code {
+  text-decoration: underline;
+}

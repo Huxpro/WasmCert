@@ -1,0 +1,124 @@
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: stage;
+}
+@media (max-width: 1080px) {
+  .pipeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .pipeline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding-top: 14px;
+  border-top: 2px solid var(--ink);
+}
+/* The arrow between stages, pinned to the rule line. */
+.stage:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  top: -0.95em;
+  right: -22px;
+  padding: 0 3px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font: 500 var(--step-1) / 1 var(--font-display);
+}
+@media (max-width: 1080px) {
+  .stage::after {
+    display: none;
+  }
+}
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.question {
+  font-size: var(--step-1);
+  font-weight: 500;
+}
+.blurb {
+  color: var(--ink-2);
+  font-size: var(--step--1);
+}
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0;
+}
+.facts div {
+  display: flex;
+  flex-direction: column-reverse;
+}
+.facts dt {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+.facts dd {
+  margin: 0;
+  font: 500 var(--step-2) / 1.1 var(--font-display);
+}
+.of {
+  font-size: var(--step-0);
+  color: var(--ink-3);
+}
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--step--1);
+}
+.files li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 10px;
+}
+.files a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.files a:hover {
+  text-decoration: underline;
+}
+.fbar {
+  display: flex;
+  gap: 1px;
+  height: 6px;
+}
+.fbar span {
+  flex-basis: 0;
+  border-radius: 1px;
+}
+.fbar [data-k='proved'] {
+  background: var(--ok);
+}
+.fbar [data-k='partial'] {
+  background: var(--open);
+}
+.fbar [data-k='stated'] {
+  background: repeating-linear-gradient(135deg, var(--open) 0 2px, var(--open-soft) 2px 5px);
+}
+.nolemmas {
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  text-align: right;
+}

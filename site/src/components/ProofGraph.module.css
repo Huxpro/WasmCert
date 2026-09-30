@@ -1,0 +1,142 @@
+.scroller {
+  overflow-x: auto;
+  padding: 8px 0 4px;
+}
+.svg {
+  display: block;
+  max-width: none;
+  margin: 0 auto;
+}
+.colLabel {
+  font: 500 10.5px var(--font-body);
+  letter-spacing: 0.08em;
+  fill: var(--ink-3);
+}
+
+/* Edges ------------------------------------------------------------------- */
+.edge {
+  cursor: pointer;
+  outline: none;
+}
+.hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+}
+.line {
+  fill: none;
+  stroke: var(--rule-strong);
+  stroke-width: 1.4;
+  transition: stroke 0.15s, opacity 0.15s;
+}
+.edge[data-status='open'] .line {
+  stroke: var(--open);
+  stroke-dasharray: 5 4;
+}
+.edge[data-status='missing'] .line {
+  stroke-dasharray: 2 4;
+}
+.arrowHead {
+  fill: var(--rule-strong);
+}
+.arrowHeadLit {
+  fill: var(--accent);
+}
+.knot {
+  fill: var(--sheet);
+  stroke: var(--rule-strong);
+  stroke-width: 1.4;
+  transition: r 0.15s;
+}
+.edge[data-status='proved'] .knot {
+  fill: var(--ok);
+  stroke: var(--ok);
+}
+.edge[data-status='modulo'] .knot {
+  stroke: var(--ok);
+}
+.edge[data-status='open'] .knot {
+  fill: var(--open);
+  stroke: var(--open);
+}
+.edge:hover .line,
+.edge:focus-visible .line,
+.edge[data-lit] .line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.edge:hover .knot,
+.edge:focus-visible .knot {
+  r: 7;
+}
+.edge[data-dim] {
+  opacity: 0.28;
+}
+
+/* Nodes ------------------------------------------------------------------- */
+.node {
+  cursor: pointer;
+  outline: none;
+}
+.box {
+  fill: var(--sheet);
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  transition: stroke 0.15s;
+}
+.node[data-kind='definition'] .box {
+  fill: var(--paper);
+  stroke: var(--rule);
+}
+.node[data-kind='theorem'] .box {
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+.node[data-kind='goal'] .box {
+  fill: none;
+  stroke: var(--missing);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.4;
+}
+.node:hover .box,
+.node:focus-visible .box,
+.node[data-selected] .box {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.node[data-dim] {
+  opacity: 0.4;
+}
+.label {
+  font: 500 13.5px var(--font-body);
+  fill: var(--ink);
+}
+.node[data-kind='theorem'] .label,
+.node[data-kind='goal'] .label {
+  font: 600 15px var(--font-display);
+}
+.node[data-kind='definition'] .label {
+  font: 500 14px var(--font-display);
+  font-style: italic;
+}
+.sub {
+  font: 400 10.5px var(--font-mono);
+  fill: var(--ink-3);
+}
+.gOk {
+  fill: var(--ok);
+}
+.gRing {
+  fill: var(--sheet);
+  stroke: var(--ok);
+  stroke-width: 1.4;
+}
+.gOpen {
+  fill: var(--open);
+}
+.gMissing {
+  fill: none;
+  stroke: var(--missing);
+  stroke-width: 1.4;
+  stroke-dasharray: 2 2;
+}

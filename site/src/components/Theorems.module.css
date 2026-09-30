@@ -1,0 +1,72 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 16px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 22px 22px 18px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.head h3 {
+  font-size: var(--step-2);
+}
+.rule {
+  padding: 18px 8px;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  border-block: 1px dashed var(--rule);
+}
+.plain {
+  color: var(--ink-2);
+  max-width: var(--measure);
+}
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--step--1);
+  color: var(--ink-2);
+}
+.meter b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.fill {
+  height: 100%;
+  background: var(--ok);
+}
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: auto;
+  font-size: var(--step--1);
+}
+.src {
+  color: var(--ink-2);
+}
+.deeper {
+  margin-left: auto;
+  font-weight: 500;
+}
